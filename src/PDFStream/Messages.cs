@@ -68,6 +68,26 @@ internal static class Messages
     internal static string InvalidOptions() =>
         "The print options are not valid, for example the printer name is empty or the number of copies is less than 1. Check the print options and try again.";
 
+    /// <summary>
+    /// The requested paper source (tray) is not one of the printer's. No existing status text can
+    /// name the printer's real trays, which is what lets the caller fix the setting, so this one
+    /// takes them as a list.
+    /// </summary>
+    /// <param name="requested">The paper source name the caller asked for.</param>
+    /// <param name="available">The paper source names the printer reports; may be empty.</param>
+    internal static string UnknownPaperSource(string requested, IReadOnlyList<string> available) =>
+        available.Count == 0
+            ? $"The paper source \"{requested}\" is not available because this printer does not report any selectable paper sources. Leave the paper source empty to use the printer's default tray."
+            : $"The paper source \"{requested}\" is not available on this printer. The available paper sources are: {string.Join(", ", available)}. Use one of these names exactly, or leave the paper source empty to use the printer's default tray.";
+
+    /// <summary>
+    /// The output file cannot be written to: the path is malformed, names a folder, or its folder
+    /// does not exist. Reported before printing so no job is started that is bound to fail.
+    /// </summary>
+    /// <param name="path">The output file path the caller gave.</param>
+    internal static string InvalidOutputFile(string path) =>
+        $"The output file \"{path}\" cannot be used. Check that the path is a file name (not a folder) and that the folder it is in already exists.";
+
     /// <summary>The job was stopped.</summary>
     internal static string Cancelled() =>
         "Printing was cancelled before it finished, so some pages may not have been printed. Start the job again if the document is still needed.";
