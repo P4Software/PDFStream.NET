@@ -1,0 +1,304 @@
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
+using System.Text;
+using PDFStream.Engine;
+using PDFStream.Tests.Fixtures;
+using Xunit;
+
+namespace PDFStream.Tests.Engine;
+
+/// <summary>
+/// Tests <see cref="PdfiumEngine"/> against the real PDFium binary: loading, the three password
+/// outcomes, rendering to a bitmap and to a device context, and two threads at once.
+/// </summary>
+public sealed class PdfiumEngineTests
+{
+    private const string UserPassword = "open-sesame";
+    private const string OwnerPassword = "owner-secret";
+
+    private readonly PdfiumEngine _engine = new();
+    private readonly ITestOutputHelper _output;
+
+    /// <summary>Creates the test class with xUnit's per-test output sink.</summary>
+    public PdfiumEngineTests(ITestOutputHelper output)
+    {
+        _output = output;
+
+        // Recorded in every test's output so a run on the x86 test host can be told apart
+        // from an x64 run by evidence rather than by assumption.
+        _output.WriteLine($"Process architecture: {RuntimeInformation.ProcessArchitecture}, runtime: {RuntimeInformation.FrameworkDescription}");
+    }
+
+    /// <summary>A valid three-page PDF loads and reports three pages.</summary>
+    [Fact]
+    public void Loads_valid_pdf_and_reports_page_count()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(3);
+
+        PdfLoadStatus status = _engine.TryLoad(pdf, null, out IPdfDocument? document);
+
+        using (document)
+        {
+            Assert.Equal(PdfLoadStatus.Ok, status);
+            Assert.NotNull(document);
+            Assert.Equal(3, document.PageCount);
+        }
+    }
+
+    /// <summary>Bytes that are not a PDF are reported as invalid, with no document.</summary>
+    [Fact]
+    public void Garbage_bytes_return_Invalid()
+    {
+        byte[] garbage = Encoding.ASCII.GetBytes("This is plain text pretending to be a PDF file.");
+
+        PdfLoadStatus status = _engine.TryLoad(garbage, null, out IPdfDocument? document);
+
+        Assert.Equal(PdfLoadStatus.Invalid, status);
+        Assert.Null(document);
+    }
+
+    /// <summary>An empty array is rejected before PDFium is called.</summary>
+    [Fact]
+    public void Empty_bytes_return_Invalid()
+    {
+        PdfLoadStatus status = _engine.TryLoad([], null, out IPdfDocument? document);
+
+        Assert.Equal(PdfLoadStatus.Invalid, status);
+        Assert.Null(document);
+    }
+
+    /// <summary>A PDF that needs a password, opened without one, asks for it.</summary>
+    [Fact]
+    public void User_password_pdf_without_password_returns_PasswordRequired()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(1, UserPassword, OwnerPassword);
+
+        PdfLoadStatus withNull = _engine.TryLoad(pdf, null, out IPdfDocument? first);
+
+        // The first real user passes an empty string, not null, when it has no password,
+        // so both must mean "no password given".
+        PdfLoadStatus withEmpty = _engine.TryLoad(pdf, string.Empty, out IPdfDocument? second);
+
+        Assert.Equal(PdfLoadStatus.PasswordRequired, withNull);
+        Assert.Null(first);
+        Assert.Equal(PdfLoadStatus.PasswordRequired, withEmpty);
+        Assert.Null(second);
+    }
+
+    /// <summary>A PDF that needs a password, opened with the wrong one, says the password is wrong.</summary>
+    [Fact]
+    public void User_password_pdf_with_wrong_password_returns_PasswordInvalid()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(1, UserPassword, OwnerPassword);
+
+        PdfLoadStatus status = _engine.TryLoad(pdf, "not-the-password", out IPdfDocument? document);
+
+        Assert.Equal(PdfLoadStatus.PasswordInvalid, status);
+        Assert.Null(document);
+    }
+
+    /// <summary>A PDF that needs a password opens with the right one.</summary>
+    [Fact]
+    public void User_password_pdf_with_right_password_loads()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(2, UserPassword, OwnerPassword);
+
+        PdfLoadStatus status = _engine.TryLoad(pdf, UserPassword, out IPdfDocument? document);
+
+        using (document)
+        {
+            Assert.Equal(PdfLoadStatus.Ok, status);
+            Assert.NotNull(document);
+            Assert.Equal(2, document.PageCount);
+        }
+    }
+
+    /// <summary>
+    /// A PDF protected only by an owner password (restrictions, no open password) opens without
+    /// any password, as every PDF reader does.
+    /// </summary>
+    [Fact]
+    public void Owner_only_password_pdf_loads_without_password()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(2, userPassword: null, ownerPassword: OwnerPassword);
+
+        PdfLoadStatus status = _engine.TryLoad(pdf, null, out IPdfDocument? document);
+
+        using (document)
+        {
+            Assert.Equal(PdfLoadStatus.Ok, status);
+            Assert.NotNull(document);
+            Assert.Equal(2, document.PageCount);
+        }
+    }
+
+    /// <summary>Page sizes come back in points, page by page, as each page is displayed.</summary>
+    [Fact]
+    public void Page_sizes_are_reported_in_points_for_each_page()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(2, mixedSizes: true);
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        {
+            SizeF a4Portrait = document!.GetPageSizePoints(0);
+            SizeF letterLandscape = document.GetPageSizePoints(1);
+
+            // A4 is 210 x 297 mm, which is 595.28 x 841.89 points.
+            Assert.Equal(595.28f, a4Portrait.Width, 0.5f);
+            Assert.Equal(841.89f, a4Portrait.Height, 0.5f);
+            Assert.Equal((float)FixtureFactory.LetterHeightPoints, letterLandscape.Width, 0.5f);
+            Assert.Equal((float)FixtureFactory.LetterWidthPoints, letterLandscape.Height, 0.5f);
+        }
+    }
+
+    /// <summary>A page with text renders to a bitmap that has ink on a white background.</summary>
+    [Fact]
+    public void RenderToBitmap_of_page_with_text_has_non_white_pixels()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(1);
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        using (Bitmap bitmap = document!.RenderToBitmap(0, 72))
+        {
+            // At 72 dpi one pixel is one point, so an A4 page is about 595 x 842 pixels.
+            Assert.InRange(bitmap.Width, 594, 596);
+            Assert.InRange(bitmap.Height, 841, 843);
+
+            // The corner holds no text, so it must be paper-white. This proves the bitmap was
+            // filled white before rendering; a zeroed (transparent black) buffer would otherwise
+            // count as "ink" everywhere and let a blank render pass the check below.
+            Assert.Equal(Color.White.ToArgb(), bitmap.GetPixel(2, 2).ToArgb());
+
+            int darkPixels = CountDarkPixels(bitmap);
+            _output.WriteLine($"Dark pixels at 72 dpi: {darkPixels}");
+            Assert.True(darkPixels > 100, $"Expected the text to leave ink on the page, found {darkPixels} dark pixels.");
+        }
+    }
+
+    /// <summary>
+    /// The device-context path, the one printing uses, draws the page. Rendering onto a memory
+    /// device context exercises the exact native signature without needing a printer.
+    /// </summary>
+    [Fact]
+    public void RenderToDeviceContext_draws_the_page_onto_a_device_context()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(1);
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        // 24 bits per pixel on purpose: GDI leaves the alpha byte of 32-bit pixels at zero, which
+        // would make every pixel GDI touches look transparent instead of black.
+        using (document)
+        using (var target = new Bitmap(298, 421, PixelFormat.Format24bppRgb))
+        {
+            using (Graphics graphics = Graphics.FromImage(target))
+            {
+                graphics.Clear(Color.White);
+                IntPtr hdc = graphics.GetHdc();
+                try
+                {
+                    document!.RenderToDeviceContext(0, hdc, new Rectangle(0, 0, target.Width, target.Height), forPrinting: true);
+                }
+                finally
+                {
+                    graphics.ReleaseHdc(hdc);
+                }
+            }
+
+            int darkPixels = CountDarkPixels(target);
+            _output.WriteLine($"Dark pixels on the device context: {darkPixels}");
+            Assert.True(darkPixels > 50, $"Expected the page text on the device context, found {darkPixels} dark pixels.");
+        }
+    }
+
+    /// <summary>
+    /// Two threads loading and rendering at the same moment both succeed. PDFium is not
+    /// thread-safe, so this only passes if the engine serialises every native call.
+    /// </summary>
+    [Fact]
+    public async Task Two_threads_loading_and_rendering_at_once_both_succeed()
+    {
+        const int Rounds = 5;
+        const int PagesPerDocument = 3;
+        byte[] pdf = FixtureFactory.CreatePdf(PagesPerDocument);
+
+        // The barrier releases both threads together so their PDFium work really overlaps.
+        using var barrier = new Barrier(2);
+
+        int RenderRepeatedly()
+        {
+            if (!barrier.SignalAndWait(TimeSpan.FromSeconds(30)))
+            {
+                throw new TimeoutException("The second thread never started.");
+            }
+
+            int pagesWithInk = 0;
+            for (int round = 0; round < Rounds; round++)
+            {
+                PdfLoadStatus status = _engine.TryLoad(pdf, null, out IPdfDocument? document);
+                Assert.Equal(PdfLoadStatus.Ok, status);
+
+                using (document)
+                {
+                    for (int page = 0; page < document!.PageCount; page++)
+                    {
+                        using Bitmap bitmap = document.RenderToBitmap(page, 60);
+                        if (CountDarkPixels(bitmap) > 0)
+                        {
+                            pagesWithInk++;
+                        }
+                    }
+                }
+            }
+
+            return pagesWithInk;
+        }
+
+        // LongRunning gives each worker its own thread, so the barrier cannot wait on a pool thread
+        // that never gets scheduled.
+        Task<int> first = Task.Factory.StartNew(RenderRepeatedly, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        Task<int> second = Task.Factory.StartNew(RenderRepeatedly, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        int[] results = await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromMinutes(2), TestContext.Current.CancellationToken);
+
+        Assert.Equal(Rounds * PagesPerDocument, results[0]);
+        Assert.Equal(Rounds * PagesPerDocument, results[1]);
+    }
+
+    /// <summary>
+    /// Counts pixels darker than mid-grey. Text in the fixtures is black, so any rendered text
+    /// shows up here while white paper does not.
+    /// </summary>
+    private static int CountDarkPixels(Bitmap bitmap)
+    {
+        var area = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
+        BitmapData data = bitmap.LockBits(area, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            var row = new int[bitmap.Width];
+            int dark = 0;
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                Marshal.Copy(data.Scan0 + (y * data.Stride), row, 0, row.Length);
+                foreach (int argb in row)
+                {
+                    int red = (argb >> 16) & 0xFF;
+                    int green = (argb >> 8) & 0xFF;
+                    int blue = argb & 0xFF;
+                    if (red + green + blue < 3 * 128)
+                    {
+                        dark++;
+                    }
+                }
+            }
+
+            return dark;
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+    }
+}

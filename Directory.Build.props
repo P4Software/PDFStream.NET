@@ -1,0 +1,39 @@
+<Project>
+  <!--
+    Settings shared by every project in the repository (library, tests and, later, the sample).
+    A project overrides any of them in its own .csproj when it needs to (for example the
+    test project turns off the XML documentation file).
+  -->
+
+  <PropertyGroup Label="Targets and language">
+    <!--
+      net10.0-windows is what the first real user runs; net8.0-windows is the long-term-support
+      release many developers are still on. The "-windows" suffix is deliberate: printing goes
+      through the Windows print system and the PDFium binaries shipped are Windows ones.
+    -->
+    <TargetFrameworks>net8.0-windows;net10.0-windows</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Documentation">
+    <!--
+      Every public type and member must carry XML documentation. Turning the "missing XML
+      comment" warning (CS1591) into an error makes the build enforce it instead of a reviewer.
+    -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <WarningsAsErrors>$(WarningsAsErrors);CS1591</WarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Label="Identity and licence">
+    <Authors>P4 Software</Authors>
+    <Company>P4 Software</Company>
+    <Product>PDFStream</Product>
+    <Copyright>Copyright (c) 2026 P4 Software</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!-- The release sets the final version; until then builds are marked as previews. -->
+    <VersionPrefix>1.0.0</VersionPrefix>
+    <VersionSuffix>preview</VersionSuffix>
+  </PropertyGroup>
+</Project>

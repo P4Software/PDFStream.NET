@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Target frameworks, nullable, XML docs, licence and version come from Directory.Build.props. -->
+
+  <PropertyGroup>
+    <RootNamespace>PDFStream</RootNamespace>
+    <AssemblyName>PDFStream</AssemblyName>
+    <Description>Free, open-source silent PDF printing for .NET on Windows, powered by PDFium. No Adobe Reader, no licence keys, no watermarks.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The engine types are internal; the tests exercise them directly. -->
+    <InternalsVisibleTo Include="PDFStream.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Prebuilt PDFium (BSD-3-Clause / Apache-2.0, packaging MIT) for win-x64, win-x86 and
+      win-arm64. PDFStream calls it through its own P/Invoke declarations in Engine/PdfiumNative.cs.
+      See THIRD-PARTY-NOTICES.md for why this package was chosen over the PDFiumCore bindings.
+    -->
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="160.0.8165" />
+  </ItemGroup>
+
+  <!--
+    System.Drawing (Bitmap, and later PrintDocument) comes from the System.Drawing.Common package
+    rather than from <UseWindowsForms>. A Windows Forms framework reference would force every
+    consumer to install the Windows Desktop runtime, which Windows services and IIS hosts (the
+    main use case) usually do not have. Each target framework gets the matching servicing line.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <PackageReference Include="System.Drawing.Common" Version="8.0.34" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="System.Drawing.Common" Version="10.0.15" />
+  </ItemGroup>
+</Project>

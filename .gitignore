@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+artifacts/
+
+# Test results
+TestResults/
+
+# Packages produced by dotnet pack
+*.nupkg
+*.snupkg
+
+# IDE and user state
+.vs/
+.idea/
+*.user
+*.suo
