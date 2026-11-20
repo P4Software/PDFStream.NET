@@ -74,7 +74,7 @@ Linux and macOS are not planned for version 1 because printing goes through the 
 
 | Step | What | Status |
 |------|------|--------|
-| 1 | Project set-up, licence, build pipeline | Planned |
+| 1 | Project set-up, licence, build pipeline | In progress (MIT licence added) |
 | 2 | Silent printing of a PDF to a chosen printer | Planned |
 | 3 | Print options (ranges, copies, duplex, colour) | Planned |
 | 4 | Password-protected PDFs and clear error messages | Planned |
@@ -90,7 +90,7 @@ especially the printers, servers and PDF files that give you trouble today.
 
 ## Licence
 
-PDFStream is free and open source. The exact licence will be added with the first code release.
+PDFStream is free and open source under the [MIT License](LICENSE). Use it in personal, commercial and closed-source projects, with no fees and no licence keys.
 
 ---
 
