@@ -194,6 +194,29 @@ public sealed class PdfSourceTests : IDisposable
     }
 
     /// <summary>
+    /// Junk in front of the PDF header never throws. Pinned to what PDFium actually does (measured,
+    /// not assumed): it looks for the "%PDF-" header within the first 1024 bytes, so a few bytes or
+    /// a few hundred bytes of junk (a stray BOM, an HTTP header, a mail wrapper) still load with
+    /// all pages.
+    /// </summary>
+    [Theory]
+    [InlineData(5)]
+    [InlineData(300)]
+    public void Leading_junk_within_the_header_window_still_loads(int junkBytes)
+    {
+        byte[] pdf = [.. new byte[junkBytes].Select(_ => (byte)'x'), .. FixtureFactory.CreatePdf(2)];
+
+        PrintStatus status = PdfSource.Load(_engine, pdf, null, out IPdfDocument? doc);
+
+        using (doc)
+        {
+            Assert.Equal(PrintStatus.Ok, status);
+            Assert.NotNull(doc);
+            Assert.Equal(2, doc.PageCount);
+        }
+    }
+
+    /// <summary>
     /// A well-formed PDF that has no pages is InvalidPdf: there is nothing in it to print. (What
     /// to do with an empty page selection is the facade's concern, not this class's.)
     /// </summary>
