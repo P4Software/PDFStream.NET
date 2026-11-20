@@ -32,16 +32,21 @@ internal interface IPdfDocument : IDisposable
     /// <param name="pageIndex">Zero-based page index.</param>
     /// <param name="hdc">The device context to draw on. The caller owns it.</param>
     /// <param name="destinationPixels">Where the page goes, in device pixels. The page is
-    /// stretched to this rectangle, so the caller keeps the aspect ratio.</param>
+    /// stretched to this rectangle, so the caller keeps the aspect ratio. When
+    /// <paramref name="quarterTurns"/> is odd the rectangle has the turned page's proportions
+    /// (a portrait page turned a quarter fills a landscape rectangle).</param>
     /// <param name="forPrinting"><see langword="true"/> to render as for paper: annotations
     /// marked "do not print" are left out and print-specific appearances are used.</param>
+    /// <param name="quarterTurns">Extra clockwise rotation in quarter turns, 0 to 3, applied on top
+    /// of the page's own rotation: 0 draws the page as it is displayed, 1 turns it 90 degrees
+    /// clockwise, 2 turns it upside down and 3 turns it 90 degrees counter-clockwise.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="pageIndex"/> is not a page of
-    /// this document, or the rectangle has no area.</exception>
+    /// this document, the rectangle has no area, or <paramref name="quarterTurns"/> is not 0 to 3.</exception>
     /// <exception cref="ArgumentException"><paramref name="hdc"/> is zero.</exception>
     /// <exception cref="InvalidOperationException">The engine could not load or draw the page,
     /// for example because the device context refused the drawing calls. Callers that print can
     /// fall back to <see cref="RenderToBitmap"/>.</exception>
-    void RenderToDeviceContext(int pageIndex, IntPtr hdc, Rectangle destinationPixels, bool forPrinting);
+    void RenderToDeviceContext(int pageIndex, IntPtr hdc, Rectangle destinationPixels, bool forPrinting, int quarterTurns);
 
     /// <summary>
     /// Renders a page to a new bitmap on a white background, at the given resolution.
@@ -49,9 +54,15 @@ internal interface IPdfDocument : IDisposable
     /// <param name="pageIndex">Zero-based page index.</param>
     /// <param name="dpi">Resolution in dots per inch; the bitmap is the page size in points
     /// times <c>dpi / 72</c>, and carries that resolution.</param>
+    /// <param name="quarterTurns">Extra clockwise rotation in quarter turns, 0 to 3, applied on top
+    /// of the page's own rotation (see <see cref="RenderToDeviceContext"/>). When it is odd the
+    /// bitmap's width and height are swapped to hold the turned page.</param>
     /// <returns>A 32-bit ARGB bitmap the caller owns and must dispose.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="pageIndex"/> is not a page of
-    /// this document, or <paramref name="dpi"/> is not positive.</exception>
+    /// this document, <paramref name="dpi"/> is not positive, <paramref name="quarterTurns"/> is not
+    /// 0 to 3, or the page is too large to render at this resolution.</exception>
+    /// <exception cref="ArgumentException">GDI+ cannot create a bitmap this large.</exception>
+    /// <exception cref="OutOfMemoryException">There is not enough memory for the bitmap.</exception>
     /// <exception cref="InvalidOperationException">The engine could not load or draw the page.</exception>
-    Bitmap RenderToBitmap(int pageIndex, int dpi);
+    Bitmap RenderToBitmap(int pageIndex, int dpi, int quarterTurns);
 }

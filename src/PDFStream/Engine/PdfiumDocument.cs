@@ -45,9 +45,10 @@ internal sealed class PdfiumDocument : IPdfDocument
     }
 
     /// <inheritdoc/>
-    public void RenderToDeviceContext(int pageIndex, IntPtr hdc, Rectangle destinationPixels, bool forPrinting)
+    public void RenderToDeviceContext(int pageIndex, IntPtr hdc, Rectangle destinationPixels, bool forPrinting, int quarterTurns)
     {
         ValidatePageIndex(pageIndex);
+        ValidateQuarterTurns(quarterTurns);
         if (hdc == IntPtr.Zero)
         {
             throw new ArgumentException("A device context is required.", nameof(hdc));
@@ -64,8 +65,8 @@ internal sealed class PdfiumDocument : IPdfDocument
         {
             WithPage(pageIndex, page =>
             {
-                // Rotation 0: the page is drawn as it is displayed (any /Rotate in the PDF is
-                // already applied). Turning a landscape page onto portrait paper is the caller's job.
+                // PDFium adds the page's own /Rotate to this rotation itself, so quarterTurns is
+                // relative to the page as it is displayed (0 draws it exactly as a viewer shows it).
                 int rendered = PdfiumNative.FPDF_RenderPage(
                     hdc,
                     page,
@@ -73,7 +74,7 @@ internal sealed class PdfiumDocument : IPdfDocument
                     destinationPixels.Y,
                     destinationPixels.Width,
                     destinationPixels.Height,
-                    0,
+                    quarterTurns,
                     flags);
                 if (rendered == 0)
                 {
@@ -90,14 +91,17 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// output), so it must look exactly like the device-context path with
     /// <c>forPrinting: true</c>.
     /// </remarks>
-    public Bitmap RenderToBitmap(int pageIndex, int dpi)
+    public Bitmap RenderToBitmap(int pageIndex, int dpi, int quarterTurns)
     {
         ValidatePageIndex(pageIndex);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(dpi);
+        ValidateQuarterTurns(quarterTurns);
 
+        // A quarter turn either way lays the page on its side, so the bitmap swaps width and height.
         SizeF sizePoints = GetPageSizePoints(pageIndex);
-        int width = ToPixels(sizePoints.Width, dpi);
-        int height = ToPixels(sizePoints.Height, dpi);
+        bool sideways = quarterTurns % 2 == 1;
+        int width = ToPixels(sideways ? sizePoints.Height : sizePoints.Width, dpi);
+        int height = ToPixels(sideways ? sizePoints.Width : sizePoints.Height, dpi);
 
         var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
         try
@@ -108,7 +112,7 @@ internal sealed class PdfiumDocument : IPdfDocument
             {
                 lock (PdfiumLibrary.Sync)
                 {
-                    WithPage(pageIndex, page => RenderInto(page, pixels, pageIndex));
+                    WithPage(pageIndex, page => RenderInto(page, pixels, pageIndex, quarterTurns));
                 }
             }
             finally
@@ -144,7 +148,7 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// Points PDFium at the locked GDI+ pixels, paints them white and renders the page into them.
     /// Must be called while holding <see cref="PdfiumLibrary.Sync"/>.
     /// </summary>
-    private static void RenderInto(IntPtr page, BitmapData pixels, int pageIndex)
+    private static void RenderInto(IntPtr page, BitmapData pixels, int pageIndex, int quarterTurns)
     {
         // PDFium draws straight into the GDI+ bitmap's memory (same BGRA layout), so no pixel copy
         // is needed. Destroying the PDFium bitmap afterwards leaves that memory untouched.
@@ -166,7 +170,7 @@ internal sealed class PdfiumDocument : IPdfDocument
                 0,
                 pixels.Width,
                 pixels.Height,
-                0,
+                quarterTurns,
                 PdfiumNative.RenderAnnotations | PdfiumNative.RenderForPrinting);
         }
         finally
@@ -221,6 +225,15 @@ internal sealed class PdfiumDocument : IPdfDocument
             {
                 _handle.DangerousRelease();
             }
+        }
+    }
+
+    /// <summary>PDFium only knows the four quarter turns 0 to 3; anything else is a caller bug.</summary>
+    private static void ValidateQuarterTurns(int quarterTurns)
+    {
+        if ((uint)quarterTurns > 3)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quarterTurns), quarterTurns, "Quarter turns must be 0, 1, 2 or 3.");
         }
     }
 

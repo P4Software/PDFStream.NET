@@ -51,8 +51,14 @@ public static class FixtureFactory
     /// When <see langword="true"/>, odd pages (first, third, ...) are A4 portrait and even pages
     /// are US Letter landscape; otherwise every page is A4 portrait.
     /// </param>
+    /// <param name="rotation">
+    /// A /Rotate value (0, 90, 180 or 270) written on every page after its content is drawn, so the
+    /// content itself stays as described above and only the way viewers display the page turns,
+    /// clockwise. 90 makes an A4 portrait page display as landscape with its text running down the
+    /// right-hand side.
+    /// </param>
     /// <returns>The complete PDF file as bytes.</returns>
-    public static byte[] CreatePdf(int pages, string? userPassword = null, string? ownerPassword = null, bool mixedSizes = false)
+    public static byte[] CreatePdf(int pages, string? userPassword = null, string? ownerPassword = null, bool mixedSizes = false, int rotation = 0)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(pages, 1);
 
@@ -77,8 +83,17 @@ public static class FixtureFactory
                     page.Size = PageSize.A4;
                 }
 
-                using XGraphics gfx = XGraphics.FromPdfPage(page);
-                gfx.DrawString($"Page {i + 1} of {pages}", font, XBrushes.Black, new XPoint(72, 144));
+                using (XGraphics gfx = XGraphics.FromPdfPage(page))
+                {
+                    gfx.DrawString($"Page {i + 1} of {pages}", font, XBrushes.Black, new XPoint(72, 144));
+                }
+
+                // Set after drawing, so the drawing is not adjusted for it: the content stays where
+                // it was written and only the displayed page turns.
+                if (rotation != 0)
+                {
+                    page.Rotate = rotation;
+                }
             }
 
             if (userPassword is not null || ownerPassword is not null)

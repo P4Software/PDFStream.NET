@@ -437,8 +437,8 @@ public sealed class PdfSourceTests : IDisposable
         public bool IsDisposed { get; private set; }
         public int PageCount { get; } = pageCount;
         public System.Drawing.SizeF GetPageSizePoints(int pageIndex) => throw new NotSupportedException();
-        public void RenderToDeviceContext(int pageIndex, IntPtr hdc, System.Drawing.Rectangle destinationPixels, bool forPrinting) => throw new NotSupportedException();
-        public System.Drawing.Bitmap RenderToBitmap(int pageIndex, int dpi) => throw new NotSupportedException();
+        public void RenderToDeviceContext(int pageIndex, IntPtr hdc, System.Drawing.Rectangle destinationPixels, bool forPrinting, int quarterTurns) => throw new NotSupportedException();
+        public System.Drawing.Bitmap RenderToBitmap(int pageIndex, int dpi, int quarterTurns) => throw new NotSupportedException();
         public void Dispose() => IsDisposed = true;
     }
 }

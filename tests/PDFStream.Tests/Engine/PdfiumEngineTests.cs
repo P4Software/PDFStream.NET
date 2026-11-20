@@ -170,7 +170,7 @@ public sealed class PdfiumEngineTests
         document!.Dispose();
 
         Assert.Throws<ObjectDisposedException>(() => document.GetPageSizePoints(0));
-        Assert.Throws<ObjectDisposedException>(() => document.RenderToBitmap(0, 72));
+        Assert.Throws<ObjectDisposedException>(() => document.RenderToBitmap(0, 72, 0));
     }
 
     /// <summary>A page index outside the document is rejected for both page-level calls.</summary>
@@ -185,7 +185,7 @@ public sealed class PdfiumEngineTests
         using (document)
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => document!.GetPageSizePoints(pageIndex));
-            Assert.Throws<ArgumentOutOfRangeException>(() => document!.RenderToBitmap(pageIndex, 72));
+            Assert.Throws<ArgumentOutOfRangeException>(() => document!.RenderToBitmap(pageIndex, 72, 0));
         }
     }
 
@@ -217,7 +217,7 @@ public sealed class PdfiumEngineTests
         Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(pdf, null, out IPdfDocument? document));
 
         using (document)
-        using (Bitmap bitmap = document!.RenderToBitmap(0, 72))
+        using (Bitmap bitmap = document!.RenderToBitmap(0, 72, 0))
         {
             // At 72 dpi one pixel is one point, so an A4 page is about 595 x 842 pixels.
             Assert.InRange(bitmap.Width, 594, 596);
@@ -228,7 +228,7 @@ public sealed class PdfiumEngineTests
             // count as "ink" everywhere and let a blank render pass the check below.
             Assert.Equal(Color.White.ToArgb(), bitmap.GetPixel(2, 2).ToArgb());
 
-            int darkPixels = CountDarkPixels(bitmap);
+            int darkPixels = Pixels.CountDark(bitmap);
             _output.WriteLine($"Dark pixels at 72 dpi: {darkPixels}");
             Assert.True(darkPixels > 100, $"Expected the text to leave ink on the page, found {darkPixels} dark pixels.");
         }
@@ -255,7 +255,7 @@ public sealed class PdfiumEngineTests
                 IntPtr hdc = graphics.GetHdc();
                 try
                 {
-                    document!.RenderToDeviceContext(0, hdc, new Rectangle(0, 0, target.Width, target.Height), forPrinting: true);
+                    document!.RenderToDeviceContext(0, hdc, new Rectangle(0, 0, target.Width, target.Height), forPrinting: true, quarterTurns: 0);
                 }
                 finally
                 {
@@ -263,9 +263,107 @@ public sealed class PdfiumEngineTests
                 }
             }
 
-            int darkPixels = CountDarkPixels(target);
+            int darkPixels = Pixels.CountDark(target);
             _output.WriteLine($"Dark pixels on the device context: {darkPixels}");
             Assert.True(darkPixels > 50, $"Expected the page text on the device context, found {darkPixels} dark pixels.");
+        }
+    }
+
+    /// <summary>
+    /// A page stored with /Rotate 90 reports its size as displayed: the A4 portrait page comes back
+    /// as landscape, width and height swapped.
+    /// </summary>
+    [Fact]
+    public void Page_with_Rotate_90_reports_its_displayed_size_with_width_and_height_swapped()
+    {
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(FixtureFactory.CreatePdf(1, rotation: 90), null, out IPdfDocument? document));
+
+        using (document)
+        {
+            SizeF size = document!.GetPageSizePoints(0);
+
+            Assert.Equal(841.89f, size.Width, 0.5f);
+            Assert.Equal(595.28f, size.Height, 0.5f);
+        }
+    }
+
+    /// <summary>
+    /// Bitmap rendering applies the page's own /Rotate and then the extra clockwise quarter turns.
+    /// The fixture's line of text sits near the top-left of the unturned A4 page, so after a net turn
+    /// it must be found where that turn puts it, with the bitmap's width and height to match.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(0, 1)]
+    [InlineData(0, 2)]
+    [InlineData(0, 3)]
+    [InlineData(90, 0)]
+    [InlineData(90, 1)]
+    [InlineData(90, 3)]
+    public void RenderToBitmap_applies_the_page_rotation_and_the_extra_quarter_turns(int pageRotation, int quarterTurns)
+    {
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(FixtureFactory.CreatePdf(1, rotation: pageRotation), null, out IPdfDocument? document));
+
+        using (document)
+        using (Bitmap bitmap = document!.RenderToBitmap(0, 72, quarterTurns))
+        {
+            int netTurns = ((pageRotation / 90) + quarterTurns) % 4;
+            AssertTextWhereTheTurnPutsIt(bitmap, netTurns);
+        }
+    }
+
+    /// <summary>The device-context path turns the page by the requested quarter turns too.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void RenderToDeviceContext_turns_the_page_by_the_quarter_turns(int quarterTurns)
+    {
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(FixtureFactory.CreatePdf(1), null, out IPdfDocument? document));
+
+        // A landscape-shaped target, half size, for the turned portrait page.
+        using (document)
+        using (var target = new Bitmap(421, 298, PixelFormat.Format24bppRgb))
+        {
+            using (Graphics graphics = Graphics.FromImage(target))
+            {
+                graphics.Clear(Color.White);
+                IntPtr hdc = graphics.GetHdc();
+                try
+                {
+                    document!.RenderToDeviceContext(0, hdc, new Rectangle(0, 0, target.Width, target.Height), forPrinting: true, quarterTurns);
+                }
+                finally
+                {
+                    graphics.ReleaseHdc(hdc);
+                }
+            }
+
+            AssertTextWhereTheTurnPutsIt(target, quarterTurns);
+        }
+    }
+
+    /// <summary>Quarter turns outside 0 to 3 are refused by both render methods.</summary>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(4)]
+    public void Quarter_turns_outside_0_to_3_throw_ArgumentOutOfRangeException(int quarterTurns)
+    {
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(FixtureFactory.CreatePdf(1), null, out IPdfDocument? document));
+
+        using (document)
+        using (var target = new Bitmap(10, 10, PixelFormat.Format24bppRgb))
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => document!.RenderToBitmap(0, 72, quarterTurns));
+            IntPtr hdc = graphics.GetHdc();
+            try
+            {
+                Assert.Throws<ArgumentOutOfRangeException>(() => document!.RenderToDeviceContext(0, hdc, new Rectangle(0, 0, 10, 10), forPrinting: true, quarterTurns));
+            }
+            finally
+            {
+                graphics.ReleaseHdc(hdc);
+            }
         }
     }
 
@@ -300,8 +398,8 @@ public sealed class PdfiumEngineTests
                 {
                     for (int page = 0; page < document!.PageCount; page++)
                     {
-                        using Bitmap bitmap = document.RenderToBitmap(page, 60);
-                        if (CountDarkPixels(bitmap) > 0)
+                        using Bitmap bitmap = document.RenderToBitmap(page, 60, 0);
+                        if (Pixels.CountDark(bitmap) > 0)
                         {
                             pagesWithInk++;
                         }
@@ -324,37 +422,36 @@ public sealed class PdfiumEngineTests
     }
 
     /// <summary>
-    /// Counts pixels darker than mid-grey. Text in the fixtures is black, so any rendered text
-    /// shows up here while white paper does not.
+    /// Checks that the fixture's text ended up where a net clockwise turn puts it. Unturned, the text
+    /// is one line near the top-left of a portrait page. A quarter turn clockwise moves it to the
+    /// top-right running down (landscape bitmap), a half turn to the lower right upside down
+    /// (portrait), three quarters to the lower left running up (landscape).
     /// </summary>
-    private static int CountDarkPixels(Bitmap bitmap)
+    private static void AssertTextWhereTheTurnPutsIt(Bitmap bitmap, int netTurns)
     {
-        var area = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
-        BitmapData data = bitmap.LockBits(area, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
-        try
-        {
-            var row = new int[bitmap.Width];
-            int dark = 0;
-            for (int y = 0; y < bitmap.Height; y++)
-            {
-                Marshal.Copy(data.Scan0 + (y * data.Stride), row, 0, row.Length);
-                foreach (int argb in row)
-                {
-                    int red = (argb >> 16) & 0xFF;
-                    int green = (argb >> 8) & 0xFF;
-                    int blue = argb & 0xFF;
-                    if (red + green + blue < 3 * 128)
-                    {
-                        dark++;
-                    }
-                }
-            }
+        Rectangle ink = Pixels.InkBounds(bitmap);
+        Assert.False(ink.IsEmpty, "Expected the page's text in the rendering.");
+        bool landscape = bitmap.Width > bitmap.Height;
+        string where = $"net turns {netTurns}, bitmap {bitmap.Width} x {bitmap.Height}, ink {ink}";
 
-            return dark;
-        }
-        finally
+        switch (netTurns)
         {
-            bitmap.UnlockBits(data);
+            case 0:
+                Assert.False(landscape, where);
+                Assert.True(ink.Width > ink.Height && ink.Left < bitmap.Width / 4 && ink.Top < bitmap.Height / 4, where);
+                break;
+            case 1:
+                Assert.True(landscape, where);
+                Assert.True(ink.Height > ink.Width && ink.Left > bitmap.Width * 3 / 4 && ink.Top < bitmap.Height / 2, where);
+                break;
+            case 2:
+                Assert.False(landscape, where);
+                Assert.True(ink.Width > ink.Height && ink.Right > bitmap.Width / 2 && ink.Top > bitmap.Height * 3 / 4, where);
+                break;
+            default:
+                Assert.True(landscape, where);
+                Assert.True(ink.Height > ink.Width && ink.Right < bitmap.Width / 4 && ink.Bottom > bitmap.Height / 2, where);
+                break;
         }
     }
 }
