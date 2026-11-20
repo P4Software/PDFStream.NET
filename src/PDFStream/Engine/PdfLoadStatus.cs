@@ -17,6 +17,6 @@ internal enum PdfLoadStatus
     /// <summary>The PDF needs a password to open and none was given.</summary>
     PasswordRequired,
 
-    /// <summary>The PDF needs a password to open and the one given is wrong.</summary>
+    /// <summary>The PDF needs a password to open and the one given is wrong. A PDF that opens without a password (restrictions only) never returns this, whatever password is supplied.</summary>
     PasswordInvalid,
 }

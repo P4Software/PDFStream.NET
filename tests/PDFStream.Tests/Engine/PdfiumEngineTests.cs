@@ -133,6 +133,62 @@ public sealed class PdfiumEngineTests
         }
     }
 
+    /// <summary>
+    /// A PDF with only an owner password opens without a password, so an unrelated password the
+    /// caller happens to supply must not turn that into a "wrong password" failure.
+    /// </summary>
+    [Fact]
+    public void Owner_only_password_pdf_loads_with_an_unrelated_password()
+    {
+        byte[] pdf = FixtureFactory.CreatePdf(2, userPassword: null, ownerPassword: OwnerPassword);
+
+        PdfLoadStatus status = _engine.TryLoad(pdf, "not-the-owner-password", out IPdfDocument? document);
+
+        using (document)
+        {
+            Assert.Equal(PdfLoadStatus.Ok, status);
+            Assert.NotNull(document);
+            Assert.Equal(2, document.PageCount);
+        }
+    }
+
+    /// <summary>Disposing a document twice is harmless.</summary>
+    [Fact]
+    public void Disposing_a_document_twice_is_safe()
+    {
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(FixtureFactory.CreatePdf(1), null, out IPdfDocument? document));
+
+        document!.Dispose();
+        document.Dispose();
+    }
+
+    /// <summary>A document that has been disposed refuses further use with ObjectDisposedException.</summary>
+    [Fact]
+    public void Using_a_document_after_dispose_throws_ObjectDisposedException()
+    {
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(FixtureFactory.CreatePdf(1), null, out IPdfDocument? document));
+        document!.Dispose();
+
+        Assert.Throws<ObjectDisposedException>(() => document.GetPageSizePoints(0));
+        Assert.Throws<ObjectDisposedException>(() => document.RenderToBitmap(0, 72));
+    }
+
+    /// <summary>A page index outside the document is rejected for both page-level calls.</summary>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(2)]
+    [InlineData(int.MaxValue)]
+    public void Out_of_range_page_index_throws_ArgumentOutOfRangeException(int pageIndex)
+    {
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(FixtureFactory.CreatePdf(2), null, out IPdfDocument? document));
+
+        using (document)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => document!.GetPageSizePoints(pageIndex));
+            Assert.Throws<ArgumentOutOfRangeException>(() => document!.RenderToBitmap(pageIndex, 72));
+        }
+    }
+
     /// <summary>Page sizes come back in points, page by page, as each page is displayed.</summary>
     [Fact]
     public void Page_sizes_are_reported_in_points_for_each_page()

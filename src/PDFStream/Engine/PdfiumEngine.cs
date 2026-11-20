@@ -10,7 +10,8 @@ internal sealed class PdfiumEngine : IPdfEngine
     /// <remarks>
     /// A <see langword="null"/> or empty array returns <see cref="PdfLoadStatus.Invalid"/> without
     /// calling PDFium. Owner-only protected PDFs (restrictions but no open password) open without
-    /// a password; their restrictions are not enforced.
+    /// a password; their restrictions are not enforced, and a password supplied for such a PDF is
+    /// ignored rather than rejected.
     /// </remarks>
     /// <exception cref="DllNotFoundException">pdfium.dll for this processor architecture is missing.</exception>
     public PdfLoadStatus TryLoad(byte[] pdf, string? password, out IPdfDocument? document)
@@ -26,6 +27,17 @@ internal sealed class PdfiumEngine : IPdfEngine
             PdfiumLibrary.EnsureInitialized();
 
             PdfiumDocumentHandle? handle = PdfiumDocumentHandle.Open(pdf, password, out int error);
+
+            // A PDF with only an owner password opens without any password, but PDFium reports a
+            // password error when a password that does not match is supplied. A caller that
+            // always passes a password (for example a print agent with one setting for all jobs)
+            // must not fail on such a file, so try once more with no password before concluding
+            // that the password is wrong.
+            if (handle is null && error == PdfiumNative.ErrorPassword && !string.IsNullOrEmpty(password))
+            {
+                handle = PdfiumDocumentHandle.Open(pdf, null, out error);
+            }
+
             if (handle is null)
             {
                 return MapLoadError(error, password);
