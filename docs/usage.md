@@ -217,10 +217,8 @@ Read this before you print PDFs that come from outside your organisation (upload
   one lock for the whole process around every PDFium call, including drawing a page onto the printer, which
   runs inside the printer driver. A driver that hangs while a page is drawn keeps that lock, and every other
   print in the same process waits behind it. A worker process per printer (or per job) contains this as well.
-- **A PDF can be built to use a lot of memory.** PDFium has few limits of its own, so a crafted file can make
-  printing use far more memory than its size suggests. Form printing adds one such case: a value that pages
-  inherit from the PDF's page tree, written inline instead of as a separate object, is copied once for every
-  page with fields. In a test, a 1.2 MB file whose 100 pages with fields inherit an inline list of 100,000
+- **A PDF can be built to make form printing use a lot of memory.** A value that pages inherit from the PDF's
+  page tree, written inline instead of as a separate object, is copied once for every page with fields. In a test, a 1.2 MB file whose 100 pages with fields inherit an inline list of 100,000
   numbers made memory grow by about 600 MB while its pages were drawn. Ordinary PDFs inherit only a few
   references this way. A worker process (above) contains such files as well.
 - **Cancellation is checked between pages only.** The token is checked before the PDF is opened, after it is
@@ -277,8 +275,9 @@ paper. Your file or byte array is never changed, and pages without fields are dr
 - **A PDF with fields costs a little more.** The pages to be printed are read once more to find the fields,
   each page with fields is drawn twice at low resolution for the check above and read once more, and until the
   print call returns the copies hold one more copy of what those pages use (their fonts and images, for
-  example). What several pages share is copied once, so this is at most about the size of the PDF file. A PDF
-  without fields costs nothing extra.
+  example). What several pages share as separate objects (images, fonts) is copied once, so for those this is
+  at most about the size of the PDF file; the exception is described under
+  [Security and limits](#security-and-limits). A PDF without fields costs nothing extra.
 - **The copy budget is 64 MB.** The copies are made only for a PDF of at most 64 MB. For a larger PDF, the
   fields of every page are drawn into the page itself. That is right for most pages; only a page that takes
   fonts or images from the PDF's page tree prints without them (see the known limitation below). Nothing is
