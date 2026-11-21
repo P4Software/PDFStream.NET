@@ -14,11 +14,16 @@ own licence; the full licence texts are reproduced at the end of this file.
 | Packaging licence | MIT (the pdfium-binaries build scripts); the NuGet package declares Apache-2.0 |
 | How PDFStream uses it | Through PDFStream's own P/Invoke declarations (`src/PDFStream/Engine/PdfiumNative.cs`), written from PDFium's public header `fpdfview.h`. No third-party .NET binding is used. |
 
-The NuGet package itself contains no licence files. The texts below come from the release archive of
-the same build (`pdfium-win-x64.tgz`, release `chromium/8165` of bblanchon/pdfium-binaries), whose
-`LICENSE` says: "This package also includes third-party software. See the licenses/ directory for
-their respective licenses." The x86 and arm64 binaries are built from the same sources with the same
-options.
+The NuGet package itself contains no licence files. The texts below come from the release archives of
+the same build (release `chromium/8165` of bblanchon/pdfium-binaries), whose `LICENSE` says: "This
+package also includes third-party software. See the licenses/ directory for their respective licenses."
+
+What was checked, on 2026-11-20, for all three archives (`pdfium-win-x64.tgz`, `pdfium-win-x86.tgz` and
+`pdfium-win-arm64.tgz`): each archive matches the SHA-256 digest published on the release; the
+`bin/pdfium.dll` in each archive is byte for byte the `pdfium.dll` that the NuGet package ships for that
+architecture; the `LICENSE` file and the 18 files in `licenses/` are identical in all three archives;
+`VERSION` is the same (160.0.8165.0); and the build settings file `args.gn` differs only in
+`target_cpu`. So the licence texts below apply to all three binaries.
 
 ### Why this package and not a .NET binding
 
@@ -60,7 +65,7 @@ Autoconf exception). Those are build scripts; they are not compiled into `pdfium
 
 | Package | Version | Licence | Why |
 |---|---|---|---|
-| System.Drawing.Common | 8.0.34 (net8.0-windows), 10.0.15 (net10.0-windows) | MIT | GDI+ bitmaps, and Windows printing in later releases |
+| System.Drawing.Common | 8.0.34 (net8.0-windows), 10.0.15 (net10.0-windows) | MIT | GDI+ bitmaps and Windows printing (`PrintDocument`) |
 | Microsoft.Win32.SystemEvents | 8.0.0 / 10.0.15, through System.Drawing.Common | MIT | Dependency of System.Drawing.Common |
 
 These are ordinary NuGet dependencies, restored from nuget.org; they are listed here for completeness.

@@ -12,7 +12,11 @@
       through the Windows print system and the PDFium binaries shipped are Windows ones.
     -->
     <TargetFrameworks>net8.0-windows;net10.0-windows</TargetFrameworks>
-    <LangVersion>latest</LangVersion>
+    <!--
+      Pinned rather than "latest", so the language does not change with whichever SDK happens to be
+      installed. C# 12 is the newest version the .NET 8 SDK supports, and the .NET 10 SDK builds it too.
+    -->
+    <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
