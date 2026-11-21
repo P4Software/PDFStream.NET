@@ -36,7 +36,9 @@ internal interface IPdfDocument : IDisposable
     /// <paramref name="quarterTurns"/> is odd the rectangle has the turned page's proportions
     /// (a portrait page turned a quarter fills a landscape rectangle).</param>
     /// <param name="forPrinting"><see langword="true"/> to render as for paper: annotations
-    /// marked "do not print" are left out and print-specific appearances are used.</param>
+    /// marked "do not print" are left out and print-specific appearances are used. Form fields are drawn as
+    /// they print whatever this says: the PDFium implementation makes a page's fields part of the page, for
+    /// printing, the first time the page is drawn (see <see cref="PdfiumDocument"/>).</param>
     /// <param name="quarterTurns">Extra clockwise rotation in quarter turns, 0 to 3, applied on top
     /// of the page's own rotation: 0 draws the page as it is displayed, 1 turns it 90 degrees
     /// clockwise, 2 turns it upside down and 3 turns it 90 degrees counter-clockwise.</param>
@@ -49,7 +51,8 @@ internal interface IPdfDocument : IDisposable
     void RenderToDeviceContext(int pageIndex, IntPtr hdc, Rectangle destinationPixels, bool forPrinting, int quarterTurns);
 
     /// <summary>
-    /// Renders a page to a new bitmap on a white background, at the given resolution.
+    /// Renders a page to a new bitmap on a white background, at the given resolution, as for paper
+    /// (form fields included, as they print).
     /// </summary>
     /// <param name="pageIndex">Zero-based page index.</param>
     /// <param name="dpi">Resolution in dots per inch; the bitmap is the page size in points

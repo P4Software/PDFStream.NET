@@ -213,3 +213,24 @@ printer's resolution (at most 300 dpi) instead. Before any job starts, the print
 queue that is paused, set to "Use printer offline", not available, being deleted, or cannot be opened is
 refused with a message naming the cause. A printer that only *reports* Offline is not refused; see
 [troubleshooting.md](troubleshooting.md#it-says-printed-but-nothing-came-out).
+
+## Form fields
+
+Filled-in form fields print: text fields, checkboxes, radio buttons, lists and the other fields of an
+ordinary PDF form (an AcroForm), with the values they hold. PDFium, the PDF engine, never draws form fields
+when it draws a page, so before a page with fields is drawn for the first time, PDFStream makes the fields part
+of the page, exactly as they print, in its own copy of the PDF in memory. Your file or byte array is never
+changed, and pages without fields are drawn untouched.
+
+- **Fields print as they print from a PDF viewer.** A field that is not marked for printing (a "screen only"
+  field, such as an instruction or a button) stays off the paper.
+- **Values come from what the PDF stores.** Each field prints its stored appearance. When the PDF says its
+  appearances must be rebuilt (the form's `NeedAppearances` setting, which some form-filling tools set instead
+  of writing the appearance), PDFium rebuilds them from the field values first. No form scripts run, so a value
+  that a script would format (a date or currency format, for example) prints as it is stored.
+- **XFA forms are not supported.** The PDFium build PDFStream ships is built without XFA. A form made only of
+  XFA (a "dynamic" form from Adobe LiveCycle or AEM Designer) has no ordinary fields to print, so only the page
+  content prints, which for such forms is often a single "Please wait..." page. A form that carries both kinds
+  prints its ordinary fields. Save or print such a form to a plain PDF first.
+- If a page's fields cannot be prepared for any reason, the page still prints, without its fields, as earlier
+  versions printed it.

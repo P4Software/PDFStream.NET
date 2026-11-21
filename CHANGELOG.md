@@ -22,6 +22,11 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   before printing: a paused queue, "Use printer offline", a printer that is not available or being deleted,
   and a queue that cannot be opened (a stopped Print Spooler included) are refused with a message naming the
   cause. A printer that only reports Offline is not refused.
+- Filled-in form fields (text fields, checkboxes and the other fields of an ordinary PDF form) print on both
+  print paths. PDFium never draws form fields when it draws a page, so before a page with fields is first
+  drawn PDFStream flattens them, as they print, into its own in-memory copy of the PDF; fields not marked for
+  printing stay off the paper, and pages without fields are untouched. XFA-only forms are not supported (the
+  bundled PDFium is built without XFA).
 - Printing straight onto the printer's page as drawing commands, with a picture fallback (at most 300 dpi)
   for drivers that refuse that; each page is scaled and turned on its own. Copies are made by the driver when
   it can, otherwise by sending the document again in the same job.

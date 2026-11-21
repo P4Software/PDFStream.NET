@@ -217,6 +217,19 @@ each page is sent once and it is 3. See [usage.md](usage.md#copies).
 Known limitation: with software copies, duplex on and an odd page count, the next copy starts on the back of
 the last sheet of the previous copy. Print one copy per call when that matters.
 
+### Form fields are missing on the paper
+
+PDFStream prints filled-in form fields (see [usage.md](usage.md#form-fields)). If some are missing:
+
+- **The field is marked as not printable.** PDF forms can hide a field from paper (often instructions or
+  buttons). Such fields stay off the paper on purpose, as they do when the PDF is printed from a viewer.
+- **The page says "Please wait..." or the fields are empty and the form looks different in Adobe Reader.**
+  The PDF is an XFA form. XFA forms are not supported: the bundled PDF engine is built without XFA, so it prints
+  only the page content. Save or print the form to a plain PDF first (for example with "Microsoft Print to PDF"
+  from a viewer that shows it correctly) and print that file.
+- **A value shows in one format on screen and another on paper.** Form scripts do not run, so a value that a
+  script formats (dates, currency) prints as it is stored in the PDF.
+
 ### A PDF marked "printing not allowed" printed anyway
 
 That is by design: owner permissions such as "printing not allowed" are ignored, as server automation

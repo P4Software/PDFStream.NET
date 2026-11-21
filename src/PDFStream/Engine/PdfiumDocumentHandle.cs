@@ -3,18 +3,27 @@ using System.Runtime.InteropServices;
 namespace PDFStream.Engine;
 
 /// <summary>
-/// Owns one open PDFium document and the native copy of the PDF bytes it was loaded from, and
-/// releases both exactly once: on <see cref="SafeHandle.Dispose()"/>, or by the finalizer if a
-/// caller forgot to dispose.
+/// Owns one open PDFium document, the native copy of the PDF bytes it was loaded from and, once a page
+/// with form fields has been printed, the document's form-fill environment; and releases all of them
+/// exactly once: on <see cref="SafeHandle.Dispose()"/>, or by the finalizer if a caller forgot to dispose.
 /// </summary>
 /// <remarks>
 /// PDFium reads the file lazily from the buffer it was given for as long as the document is open,
-/// so the buffer must outlive the document. Keeping both in one handle makes that ordering
-/// impossible to get wrong: the document is closed first, then the buffer is freed.
+/// so the buffer must outlive the document; the form-fill environment refers to the document, so it
+/// must be closed before the document; and PDFium keeps a pointer to the environment's
+/// FPDF_FORMFILLINFO block, so that block must outlive the environment. Keeping all of them in one
+/// handle makes that ordering impossible to get wrong: environment, document, then the two blocks.
 /// </remarks>
 internal sealed class PdfiumDocumentHandle : SafeHandle
 {
     private IntPtr _buffer;
+
+    // The form-fill environment and the zeroed FPDF_FORMFILLINFO block it was created with. Both stay
+    // IntPtr.Zero until GetOrCreateFormFillEnvironment is first called, which only happens for a document
+    // that has a page with form fields. Read and written only while holding PdfiumLibrary.Sync.
+    private IntPtr _formEnvironment;
+    private IntPtr _formFillInfo;
+    private bool _formEnvironmentAttempted;
 
     private PdfiumDocumentHandle()
         : base(IntPtr.Zero, ownsHandle: true)
@@ -70,6 +79,56 @@ internal sealed class PdfiumDocumentHandle : SafeHandle
         return owner;
     }
 
+    /// <summary>
+    /// Returns the document's form-fill environment, creating it the first time it is asked for. PDFium's
+    /// form-fill module builds the appearance of fields (and of other annotations) that have none stored,
+    /// which flattening needs; see <see cref="PdfiumDocument"/>.
+    /// </summary>
+    /// <remarks>
+    /// The caller must hold <see cref="PdfiumLibrary.Sync"/> and a reference on this handle (so the document
+    /// cannot be closed meanwhile). The environment is created with every host callback left empty and no
+    /// JavaScript platform: PDFium checks each callback for null before calling it, so the module never
+    /// calls back into the program, never runs a script and never performs an action such as opening a link.
+    /// Creation is attempted once; if PDFium refuses, the answer stays <see cref="IntPtr.Zero"/>.
+    /// </remarks>
+    /// <returns>The environment, or <see cref="IntPtr.Zero"/> when PDFium could not create one.</returns>
+    internal IntPtr GetOrCreateFormFillEnvironment()
+    {
+        if (_formEnvironmentAttempted)
+        {
+            return _formEnvironment;
+        }
+
+        _formEnvironmentAttempted = true;
+
+        int size = PdfiumNative.FormFillInfoSlots * IntPtr.Size;
+        IntPtr info = Marshal.AllocHGlobal(size);
+        IntPtr environment;
+        try
+        {
+            // Every byte zero (no callbacks, no JavaScript platform), then the version in the first member.
+            Marshal.Copy(new byte[size], 0, info, size);
+            Marshal.WriteInt32(info, 0, PdfiumNative.FormFillInfoVersion);
+            environment = PdfiumNative.FPDFDOC_InitFormFillEnvironment(handle, info);
+        }
+        catch
+        {
+            Marshal.FreeHGlobal(info);
+            throw;
+        }
+
+        if (environment == IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(info);
+            return IntPtr.Zero;
+        }
+
+        // From here on ReleaseHandle owns both and frees them in the right order.
+        _formFillInfo = info;
+        _formEnvironment = environment;
+        return environment;
+    }
+
     /// <inheritdoc/>
     protected override bool ReleaseHandle()
     {
@@ -78,7 +137,22 @@ internal sealed class PdfiumDocumentHandle : SafeHandle
         // not being thread-safe, and far better than a crash.
         lock (PdfiumLibrary.Sync)
         {
+            // The form-fill environment refers to the document, so it is closed first.
+            if (_formEnvironment != IntPtr.Zero)
+            {
+                PdfiumNative.FPDFDOC_ExitFormFillEnvironment(_formEnvironment);
+                _formEnvironment = IntPtr.Zero;
+            }
+
             PdfiumNative.FPDF_CloseDocument(handle);
+        }
+
+        // PDFium kept a pointer to the FPDF_FORMFILLINFO block until the environment was closed, and read
+        // the PDF from the buffer until the document was closed; only now may both go.
+        if (_formFillInfo != IntPtr.Zero)
+        {
+            Marshal.FreeHGlobal(_formFillInfo);
+            _formFillInfo = IntPtr.Zero;
         }
 
         Marshal.FreeHGlobal(_buffer);

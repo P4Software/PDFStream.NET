@@ -21,6 +21,32 @@ public static class Pixels
         return dark;
     }
 
+    /// <summary>Counts the dark pixels (as <see cref="CountDark"/> defines them) inside <paramref name="area"/>.</summary>
+    public static int CountDarkIn(Bitmap bitmap, Rectangle area)
+    {
+        int dark = 0;
+        ForEachDarkPixel(bitmap, (x, y) =>
+        {
+            if (area.Contains(x, y))
+            {
+                dark++;
+            }
+        });
+        return dark;
+    }
+
+    /// <summary>
+    /// Which pixels are dark, row by row (index <c>y * width + x</c>). Two renderings of the same page can be
+    /// compared with it pixel for pixel.
+    /// </summary>
+    public static bool[] DarkMask(Bitmap bitmap)
+    {
+        var mask = new bool[bitmap.Width * bitmap.Height];
+        int width = bitmap.Width;
+        ForEachDarkPixel(bitmap, (x, y) => mask[(y * width) + x] = true);
+        return mask;
+    }
+
     /// <summary>
     /// The smallest rectangle holding every dark pixel, or <see cref="Rectangle.Empty"/> when the
     /// bitmap has none. Its position shows where a page landed on the sheet; its shape shows whether

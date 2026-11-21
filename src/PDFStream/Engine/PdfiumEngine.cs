@@ -1,11 +1,22 @@
 namespace PDFStream.Engine;
 
 /// <summary>
-/// The PDFium implementation of <see cref="IPdfEngine"/>. Stateless and safe to share: all
-/// PDFium state is process-wide and guarded by <see cref="PdfiumLibrary.Sync"/>.
+/// The PDFium implementation of <see cref="IPdfEngine"/>. Holds no state of its own beyond its settings and
+/// is safe to share: all PDFium state is process-wide and guarded by <see cref="PdfiumLibrary.Sync"/>.
 /// </summary>
 internal sealed class PdfiumEngine : IPdfEngine
 {
+    private readonly PageFlattener? _flattenPage;
+
+    /// <summary>Creates the engine.</summary>
+    /// <param name="flattenPage">How the documents it opens flatten a page with form fields;
+    /// <see langword="null"/> (the default, and what PDFStream uses) means PDFium's own <c>FPDFPage_Flatten</c>.
+    /// Tests pass one that fails, to show that a page that cannot be flattened still prints.</param>
+    internal PdfiumEngine(PageFlattener? flattenPage = null)
+    {
+        _flattenPage = flattenPage;
+    }
+
     /// <inheritdoc/>
     /// <remarks>
     /// A <see langword="null"/> or empty array returns <see cref="PdfLoadStatus.Invalid"/> without
@@ -45,7 +56,7 @@ internal sealed class PdfiumEngine : IPdfEngine
 
             try
             {
-                document = new PdfiumDocument(handle);
+                document = new PdfiumDocument(handle, _flattenPage);
             }
             catch
             {

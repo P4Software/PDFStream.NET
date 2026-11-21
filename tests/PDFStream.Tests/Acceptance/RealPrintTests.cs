@@ -175,6 +175,24 @@ public sealed class RealPrintTests : IDisposable
     }
 
     /// <summary>
+    /// Filled-in form fields reach the paper. The fixture page holds nothing but its fields (a filled text field
+    /// and a ticked checkbox marked for printing, and one screen-only field), so a blank output page means the
+    /// fields were lost on the way to the printer, which is what happened before PDFStream flattened them.
+    /// </summary>
+    [Fact]
+    public void Filled_form_fields_print()
+    {
+        RequirePrinter();
+        string output = OutputPath("form.pdf");
+
+        PrintResult result = PrintWithTimeout(FormFixtureFactory.Create(), new PrintOptions { PrinterName = PrinterName, OutputFile = output });
+
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(1, result.PagesPrinted);
+        AssertOutputPages(output, expectedPages: 1);
+    }
+
+    /// <summary>
     /// Print to PDF accepts the page as drawing commands on the printer's device context, so the bitmap
     /// fallback is never used. The page painter has no public or internal switch that reports this, so the
     /// check goes through the engine seam the facade already has: a wrapper around the real engine counts
