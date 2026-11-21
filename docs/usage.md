@@ -48,7 +48,8 @@ PrintResult result = PdfPrinter.Print(pdfBytes, new PrintOptions
 
 if (!result.Succeeded)
 {
-    // The message is written for people: log it or show it as it is.
+    // The message is written for people: log it. An UnknownError message can end with technical details,
+    // so do not show it as it is in a public web page.
     logger.LogWarning("Packing slip 1042 did not print ({Status}): {Message}", result.Status, result.Message);
 }
 ```
@@ -77,7 +78,7 @@ the printer's own setting, except where a default is given below.
 |---|---|
 | `Succeeded` | `true` only when every requested page was rendered and sent to the printer (`Status` is `Ok`). |
 | `Status` | A `PrintStatus` value to branch on in code. |
-| `Message` | The same outcome in plain language: what happened and, for a failure, what to do next. Safe to show to an end user. |
+| `Message` | The same outcome in plain language: what happened and, for a failure, what to do next. Most messages can be shown to the person running the program as they are, but an `UnknownError` message may end with technical details (the text of an internal exception), so log it rather than show it in a public web page. |
 | `PagesPrinted` | How many pages were sent to the printer. See below. |
 
 ### What PagesPrinted counts
@@ -87,8 +88,8 @@ the printer's own setting, except where a default is given below.
   once, so it is the number of pages only.
 - **After a cancellation that ended the job normally**: the exact number of pages sent before printing
   stopped. The job is then finished normally, so those pages do print.
-- **After a failure**: 0. A job that fails is aborted, Windows withdraws it from the print queue, and pages
-  drawn before the failure normally never come out. A cancellation that arrives before the first page has
+- **After a failure**: 0. A job that fails is aborted and may have been withdrawn from the print queue by
+  Windows (check the queue for a job left over), and pages drawn before the failure normally never come out. A cancellation that arrives before the first page has
   been drawn is also reported with 0, and so is a job the print system cancelled by itself.
 
 "Printed" means the pages were really rendered and handed to Windows. It does not mean paper has come out:

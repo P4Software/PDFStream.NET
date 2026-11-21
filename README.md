@@ -81,7 +81,8 @@ PrintResult result = PdfPrinter.Print(pdf, new PrintOptions
 
 if (!result.Succeeded)
 {
-    // The message is written for people, so it can go straight into a log or onto a screen.
+    // The message is written for people: log it, or show it to the person running the program. An
+    // UnknownError message can end with technical details, so keep it out of public web pages.
     Console.WriteLine(result.Message);
 }
 ```
