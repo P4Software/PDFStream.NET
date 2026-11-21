@@ -25,6 +25,12 @@ manual release checklist rows are as open as they were for 1.0.0-rc.1.
   packed.
 - `.github/scripts/check-package.ps1`: the package check, moved out of `ci.yml` into one script, the only place
   that pins the version being released.
+- `.github/workflows/publish.yml` ("Publish to NuGet"): publishes to nuget.org with NuGet Trusted Publishing, so
+  no API key is stored. It runs only when started by hand, only from `main`, in the `release` environment (which
+  needs an approval); it builds with warnings as errors, runs both test suites, packs, runs the same package
+  check as CI, uploads the package, then asks nuget.org for a one-hour key and pushes with `--skip-duplicate`.
+  `CONTRIBUTING.md` describes the one-time set-up and the steps of each release. It has not run yet: the
+  nuget.org policy, the environment and the secret it needs do not exist yet.
 
 ### Changed
 

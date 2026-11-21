@@ -112,6 +112,39 @@ Work through the [manual release checklist](docs/release-checklist.md). Nothing 
 someone has run the check and written the machine, the date and the result in the row. Never mark a row from
 memory.
 
+## Releasing
+
+Releases are published to nuget.org by the **Publish to NuGet** workflow (`.github/workflows/publish.yml`) with
+NuGet Trusted Publishing: GitHub gives the workflow a short-lived token, nuget.org exchanges it for an API key that
+is valid for one hour, and the workflow pushes with it. No API key is stored anywhere, so there is none to rotate
+or leak. The workflow runs only when started by hand, only from `main`, and only after a reviewer approves it.
+
+One-time set-up (the owner):
+
+1. On nuget.org, open your name menu, choose **Trusted Publishing** and add a policy: Repository Owner
+   `P4Software`, Repository `PDFStream.NET`, Workflow File `publish.yml` (the file name only), Environment
+   `release`, with the scope to push new versions of the package `PDFStream.NET`.
+2. On GitHub, in the repository settings, create the environment `release` with a required reviewer.
+3. Add the repository secret `NUGET_USER` with the nuget.org profile name (not an e-mail address) as its value.
+
+If nuget.org shows the new policy as temporarily active (it does this when it cannot yet look up the repository's
+IDs, usually for private repositories), it stays active for 7 days and becomes permanently active with the first
+successful publish.
+
+Each release:
+
+1. Set the version: `VersionPrefix` and `VersionSuffix` in `Directory.Build.props`, the pinned version in
+   `.github/scripts/check-package.ps1`, and the `--version` install line in `src/PDFStream.NET/README.nuget.md`.
+   Add the version's section to `CHANGELOG.md` and update `PackageReleaseNotes` in the library's project file.
+2. Merge to `main` once CI is green.
+3. On GitHub, open **Actions**, choose **Publish to NuGet**, then **Run workflow** with `main` selected.
+4. Approve the run when GitHub asks (the `release` environment). The workflow builds with warnings as errors,
+   runs both test suites, packs, runs the package check and only then pushes.
+5. Wait while nuget.org shows the new version as **Validating**; it can be installed once that is done, usually
+   within some minutes. A version on nuget.org can never be changed or reused: a mistake means a new version.
+
+Re-running the workflow for a version that is already on nuget.org pushes nothing (`--skip-duplicate`).
+
 ## Rules for code
 
 - The public API never throws for bad input or printer problems: it returns a `PrintResult` with a status and
