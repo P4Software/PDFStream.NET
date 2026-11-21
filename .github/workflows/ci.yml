@@ -58,7 +58,7 @@ jobs:
       - name: Show the .NET SDK in use
         run: dotnet --version
 
-      # Reports, never fails. Eight facade tests and the seven real-print tests need the
+      # Reports, never fails. Eight facade tests and the eight real-print tests need the
       # "Microsoft Print to PDF" printer and skip themselves (with a reason) when it is missing, so this
       # step and the skipped-test report below make a silent skip visible.
       - name: Report the printer the real-print tests need

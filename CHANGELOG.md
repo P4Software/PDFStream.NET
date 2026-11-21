@@ -63,12 +63,13 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
 
 ### Verified
 
-Test hosts actually run for this change (2026-11-20, one Windows 11 x64 machine, .NET SDK 11.0.100):
+Test hosts actually run for this change (one Windows 11 x64 machine, .NET SDK 11.0.100; the test counts are
+from the last run, on 2026-11-21):
 
-- win-x64: `net8.0-windows` (288 tests) and `net10.0-windows` (313 tests), all passed, none skipped.
-- win-x86: `net8.0-windows` and `net10.0-windows`
-  (`dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --arch x86`), all passed;
-  the tests logged `Process architecture: X86`.
+- win-x64: `net8.0-windows` (358 tests) and `net10.0-windows` (383 tests), all passed, none skipped.
+- win-x86: `net8.0-windows` (358 tests) and `net10.0-windows` (383 tests)
+  (`dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --arch x86`), all passed, none
+  skipped; the tests logged `Process architecture: X86`.
 - win-arm64: **not run**. No arm64 machine was available, and an x64 machine cannot execute arm64
   code. The arm64 `pdfium.dll` is present in the package and exports the same functions, but
   loading it is unverified.
