@@ -20,7 +20,7 @@ internal static class PrinterLocator
     /// <param name="settings">The ready settings when the result is <see cref="PrintStatus.Ok"/>, otherwise <see langword="null"/>.</param>
     /// <returns>A status; use the overload with a message when the text matters (the paper source text lists the available trays).</returns>
     internal static PrintStatus TryCreateSettings(PrintOptions options, out PrinterSettings? settings) =>
-        TryCreateSettings(options, SystemPrinterCatalog.Instance, out settings, out _);
+        TryCreateSettings(options, SystemPrinterCatalog.Instance, WinspoolPrinterStatusProbe.Instance, out settings, out _);
 
     /// <summary>
     /// Prepares the settings for one print job.
@@ -32,11 +32,31 @@ internal static class PrinterLocator
     /// <returns>
     /// <see cref="PrintStatus.Ok"/>, <see cref="PrintStatus.InvalidOptions"/> (empty name, fewer than one
     /// copy, unknown paper source, unusable output file), <see cref="PrintStatus.PrinterNotFound"/> or
-    /// <see cref="PrintStatus.PrinterUnavailable"/> (the printer cannot be opened or cannot do what was asked).
+    /// <see cref="PrintStatus.PrinterUnavailable"/> (the printer cannot be opened, cannot do what was
+    /// asked, or its queue is paused, offline, set to work offline, not available, being deleted or
+    /// behind an offline print server; the message names the cause). The queue state is read with the
+    /// real Windows print spooler.
     /// </returns>
     internal static PrintStatus TryCreateSettings(
         PrintOptions options,
         IPrinterCatalog catalog,
+        out PrinterSettings? settings,
+        out string message) =>
+        TryCreateSettings(options, catalog, WinspoolPrinterStatusProbe.Instance, out settings, out message);
+
+    /// <summary>
+    /// Prepares the settings for one print job, checking the printer queue's state with the given probe.
+    /// </summary>
+    /// <param name="options">The caller's print options.</param>
+    /// <param name="catalog">Where the installed printer names come from.</param>
+    /// <param name="statusProbe">Where the printer queue's state comes from (see <see cref="PrinterStatusCheck"/>).</param>
+    /// <param name="settings">The ready settings when the result is <see cref="PrintStatus.Ok"/>, otherwise <see langword="null"/>.</param>
+    /// <param name="message">The plain-language text for the result: it says what happened and what to do next.</param>
+    /// <returns>As for the overload without a probe.</returns>
+    internal static PrintStatus TryCreateSettings(
+        PrintOptions options,
+        IPrinterCatalog catalog,
+        IPrinterStatusProbe statusProbe,
         out PrinterSettings? settings,
         out string message)
     {
@@ -90,6 +110,15 @@ internal static class PrinterLocator
             {
                 message = Messages.PrinterUnavailable();
                 return PrintStatus.PrinterUnavailable;
+            }
+
+            // A paused or offline queue would accept the job and hold it, and the caller would be told
+            // it printed. Checked here, where every print call gets its settings, so the job is never
+            // started; the check itself never throws and never blocks on a status it cannot read.
+            PrintStatus ready = PrinterStatusCheck.Check(statusProbe, installedName, out message);
+            if (ready != PrintStatus.Ok)
+            {
+                return ready;
             }
 
             PrintStatus status = Apply(options, candidate, outputFile, out message);

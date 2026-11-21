@@ -34,8 +34,10 @@ internal static class PrintJob
     /// <see cref="PrintStatus.Ok"/> only when every page was drawn and sent. Otherwise
     /// <see cref="PrintStatus.InvalidPageRange"/> (no pages), <see cref="PrintStatus.PageNotFound"/>,
     /// <see cref="PrintStatus.Cancelled"/>, <see cref="PrintStatus.PrinterUnavailable"/> or
-    /// <see cref="PrintStatus.UnknownError"/>, with <see cref="PrintResult.PagesPrinted"/> set to the
-    /// pages sent before the job stopped.
+    /// <see cref="PrintStatus.UnknownError"/>. <see cref="PrintResult.PagesPrinted"/> is then the exact
+    /// number of pages sent when a cancellation ended the job normally (those pages print), and 0 after
+    /// any failure or abort: the print system withdraws an unfinished job, so pages drawn before the
+    /// failure normally never come out.
     /// </returns>
     /// <remarks>
     /// Software copies (when the driver's <see cref="PrinterSettings.MaximumCopies"/> is below the
@@ -109,7 +111,7 @@ internal static class PrintJob
         }
         catch (Exception ex)
         {
-            return feeder is null ? MapException(ex, pagesSent: 0) : feeder.Failed(ex);
+            return feeder is null ? MapException(ex) : feeder.Failed(ex);
         }
         finally
         {
@@ -143,12 +145,14 @@ internal static class PrintJob
     /// <summary>
     /// Turns an exception from the print system into a result: the printer could not be opened or
     /// refused the job (<see cref="InvalidPrinterException"/>, or a Windows error such as a failing
-    /// StartDoc, which arrives as an <see cref="ExternalException"/>), or anything else.
+    /// StartDoc, EndPage or EndDoc, which arrives as an <see cref="ExternalException"/>), or anything
+    /// else. No pages are counted: a job the print system failed on is aborted or never finished, so
+    /// what was drawn before the failure is not known to print.
     /// </summary>
-    private static PrintResult MapException(Exception ex, int pagesSent) => ex switch
+    private static PrintResult MapException(Exception ex) => ex switch
     {
-        InvalidPrinterException or ExternalException => PrintResult.Failure(PrintStatus.PrinterUnavailable, pagesPrinted: pagesSent),
-        _ => PrintResult.Failure(PrintStatus.UnknownError, Messages.UnknownError(ex.Message), pagesSent),
+        InvalidPrinterException or ExternalException => PrintResult.Failure(PrintStatus.PrinterUnavailable),
+        _ => PrintResult.Failure(PrintStatus.UnknownError, Messages.UnknownError(ex.Message)),
     };
 
     /// <summary>
@@ -159,7 +163,12 @@ internal static class PrintJob
     {
         private readonly long _total = (long)pages.Count * repetitions;
         private long _next;
-        private PrintResult? _stopped;
+
+        // Why the job was aborted, if it was; such a result always counts 0 pages.
+        private PrintResult? _aborted;
+
+        // Set when a cancellation ended the job normally after the page in progress.
+        private bool _cancelledBetweenPages;
 
         /// <summary>Pages drawn and handed to the print system so far, across all repetitions.</summary>
         public int PagesSent { get; private set; }
@@ -172,9 +181,7 @@ internal static class PrintJob
             // push that blank sheet out of the printer.
             if (PagesSent == 0 && token.IsCancellationRequested)
             {
-                _stopped = PrintResult.Failure(PrintStatus.Cancelled);
-                e.Cancel = true;
-                e.HasMorePages = false;
+                Abort(e, PrintResult.Failure(PrintStatus.Cancelled));
                 return;
             }
 
@@ -187,7 +194,7 @@ internal static class PrintJob
                 {
                     // A printer that reports no printable area cannot print anything; the fault is the
                     // printer's, not the page's.
-                    Abort(e, PrintResult.Failure(PrintStatus.PrinterUnavailable, pagesPrinted: PagesSent));
+                    Abort(e, PrintResult.Failure(PrintStatus.PrinterUnavailable));
                     return;
                 }
 
@@ -196,12 +203,12 @@ internal static class PrintJob
             }
             catch (PagePainter.PageTooLargeException)
             {
-                Abort(e, PrintResult.Failure(PrintStatus.UnknownError, Messages.PageTooLarge(pageIndex + 1), PagesSent));
+                Abort(e, PrintResult.Failure(PrintStatus.UnknownError, Messages.PageTooLarge(pageIndex + 1)));
                 return;
             }
             catch (Exception ex)
             {
-                Abort(e, PrintResult.Failure(PrintStatus.UnknownError, Messages.PageFailed(pageIndex + 1, ex.Message), PagesSent));
+                Abort(e, PrintResult.Failure(PrintStatus.UnknownError, Messages.PageFailed(pageIndex + 1, ex.Message)));
                 return;
             }
 
@@ -212,7 +219,7 @@ internal static class PrintJob
             // Stopping here ends the job normally, so every page counted as sent really prints.
             if (_next < _total && token.IsCancellationRequested)
             {
-                _stopped = PrintResult.Failure(PrintStatus.Cancelled, pagesPrinted: PagesSent);
+                _cancelledBetweenPages = true;
                 e.HasMorePages = false;
                 return;
             }
@@ -220,34 +227,43 @@ internal static class PrintJob
             e.HasMorePages = _next < _total;
         }
 
-        /// <summary>The result of a job the print system ran to its end.</summary>
+        /// <summary>The result of a job the print system closed without an exception.</summary>
         public PrintResult Result()
         {
-            if (_stopped is not null)
+            if (_aborted is not null)
             {
-                return _stopped;
+                return _aborted;
             }
 
-            // Fewer pages than asked for, with no reason recorded here, means the print system ended the
-            // job by itself (for example a Save As box closed without saving). That is never success.
+            if (_cancelledBetweenPages)
+            {
+                // The job was ended normally after the page in progress, so exactly these pages print.
+                return PrintResult.Failure(PrintStatus.Cancelled, pagesPrinted: PagesSent);
+            }
+
+            // Fewer pages than asked for, with no reason recorded here, means the print system cancelled
+            // the job by itself (for example a Save As box closed without saving). It then aborts the job,
+            // so nothing is counted. That is never success.
             return PagesSent == _total
                 ? PrintResult.Success(PagesSent)
-                : PrintResult.Failure(PrintStatus.Cancelled, pagesPrinted: PagesSent);
+                : PrintResult.Failure(PrintStatus.Cancelled);
         }
 
-        /// <summary>The result of a job the print system ended with an exception.</summary>
-        public PrintResult Failed(Exception ex) =>
-
-            // A reason a page recorded wins over whatever the print system threw while closing the job.
-            _stopped ?? MapException(ex, PagesSent);
+        /// <summary>
+        /// The result of a job the print system ended with an exception. A page's own reason for
+        /// aborting wins over whatever was thrown while closing the aborted job. A cancellation does not:
+        /// if closing the normally ended job fails, its pages may never print, so it is a failure.
+        /// </summary>
+        public PrintResult Failed(Exception ex) => _aborted ?? MapException(ex);
 
         /// <summary>
-        /// Stops the job because of a failure. The job is aborted, so the print system withdraws it
-        /// from the queue and the sheet started for this page (blank or half drawn) never comes out.
+        /// Stops the job because of a failure, or a cancellation before anything was drawn. The job is
+        /// aborted, so the print system withdraws it from the queue and the sheet started for this page
+        /// (blank or half drawn) never comes out. <paramref name="why"/> must count 0 pages.
         /// </summary>
         private void Abort(PrintPageEventArgs e, PrintResult why)
         {
-            _stopped = why;
+            _aborted = why;
             e.Cancel = true;
             e.HasMorePages = false;
         }

@@ -1,5 +1,6 @@
 using System.Drawing.Printing;
 using PDFStream.Printing;
+using PDFStream.Tests.Printing;
 using Xunit;
 
 namespace PDFStream.Tests;
@@ -357,5 +358,50 @@ public sealed class PrinterLocatorTests
         Assert.Equal(PrintStatus.Ok, status);
         Assert.NotNull(settings);
         Assert.Equal(first, settings.DefaultPageSettings.PaperSource.SourceName);
+    }
+
+    /// <summary>
+    /// Settings creation checks the queue before handing out settings: a paused printer is refused with
+    /// the paused message, so the job never starts and nothing claims success.
+    /// </summary>
+    [Fact]
+    public void Paused_printer_is_PrinterUnavailable_before_any_settings_are_returned()
+    {
+        RequirePdfPrinter();
+        var probe = FakeStatusProbe.Reading(0x00000001u);
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = PdfPrinter }, SystemPrinterCatalog.Instance, probe, out PrinterSettings? settings, out string message);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, status);
+        Assert.Null(settings);
+        Assert.Equal(Messages.PrinterPaused(PdfPrinter), message);
+        Assert.Equal([PdfPrinter], probe.Asked);
+    }
+
+    /// <summary>A status probe that fails does not stop settings from being created.</summary>
+    [Fact]
+    public void Unreadable_printer_status_does_not_block_settings()
+    {
+        RequirePdfPrinter();
+        var probe = new FakeStatusProbe(PrinterStatusReadOutcome.Read) { Throws = new InvalidOperationException("Status unavailable.") };
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = PdfPrinter }, SystemPrinterCatalog.Instance, probe, out PrinterSettings? settings, out string message);
+
+        Assert.Equal(PrintStatus.Ok, status);
+        Assert.NotNull(settings);
+        Assert.Equal(Messages.Ok(), message);
+    }
+
+    /// <summary>The probe is asked about the installed spelling of the name, not the caller's.</summary>
+    [Fact]
+    public void Status_probe_is_asked_about_the_installed_name()
+    {
+        RequirePdfPrinter();
+        var probe = FakeStatusProbe.Reading(0);
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = PdfPrinter.ToUpperInvariant() }, SystemPrinterCatalog.Instance, probe, out _, out _);
+
+        Assert.Equal(PrintStatus.Ok, status);
+        Assert.Equal([PdfPrinter], probe.Asked);
     }
 }

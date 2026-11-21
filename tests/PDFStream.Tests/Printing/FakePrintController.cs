@@ -69,6 +69,9 @@ internal sealed class FakePrintController : PrintController, IDisposable
     /// <summary>Runs when the job starts, before any page (for example to cancel a token at that moment).</summary>
     public Action? OnStartPrintCallback { get; init; }
 
+    /// <summary>When set, closing the job throws this, like EndDoc or AbortDoc failing in the print system.</summary>
+    public Exception? ThrowOnEndPrint { get; init; }
+
     /// <summary>When set together with <see cref="ThrowOnStartPageNumber"/>, starting that page throws this.</summary>
     public Exception? ThrowOnStartPage { get; init; }
 
@@ -113,6 +116,10 @@ internal sealed class FakePrintController : PrintController, IDisposable
     {
         EndedWithCancel = e.Cancel;
         base.OnEndPrint(document, e);
+        if (ThrowOnEndPrint is not null)
+        {
+            throw ThrowOnEndPrint;
+        }
     }
 
     /// <summary>Releases the page bitmaps.</summary>

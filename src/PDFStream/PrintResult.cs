@@ -23,8 +23,10 @@ public sealed class PrintResult
     public string Message { get; }
 
     /// <summary>
-    /// How many pages were sent to the printer. After a failure or a cancellation it is the number
-    /// that had already been sent, which may be more than zero.
+    /// How many pages were sent to the printer. After a cancellation it is the exact number sent before
+    /// printing stopped; the job is then finished normally, so those pages print. After a failure it is
+    /// 0: the unfinished job is withdrawn from the print queue, so pages drawn before the failure
+    /// normally do not come out.
     /// </summary>
     public int PagesPrinted { get; }
 
@@ -36,7 +38,7 @@ public sealed class PrintResult
     /// <summary>Creates the result of a job that did not (fully) print.</summary>
     /// <param name="status">The reason. It must not be <see cref="PrintStatus.Ok"/>.</param>
     /// <param name="message">A more specific message than the standard one for the status, or <see langword="null"/> for the standard one.</param>
-    /// <param name="pagesPrinted">The pages already sent before the failure.</param>
+    /// <param name="pagesPrinted">The exact pages sent when a cancellation ended the job normally; 0 (the default) after a failure, because an unfinished job is withdrawn.</param>
     internal static PrintResult Failure(PrintStatus status, string? message = null, int pagesPrinted = 0)
     {
         // Succeeded is derived from Status, so a "failure" with the Ok status would claim success

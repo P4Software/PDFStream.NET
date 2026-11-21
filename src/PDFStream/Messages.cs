@@ -88,6 +88,40 @@ internal static class Messages
     internal static string InvalidOutputFile(string path) =>
         $"The output file \"{path}\" cannot be used. Check that the path is a file name (not a folder) and that the folder it is in already exists.";
 
+    /// <summary>The printer queue is paused in Windows.</summary>
+    /// <param name="printerName">The printer, as Windows lists it.</param>
+    internal static string PrinterPaused(string printerName) =>
+        $"The printer \"{printerName}\" is paused in Windows, so the document was not sent. Open the printer's queue (Settings, Printers & scanners), choose Resume, then print again.";
+
+    /// <summary>The printer is set to "Use printer offline" in Windows.</summary>
+    /// <param name="printerName">The printer, as Windows lists it.</param>
+    internal static string PrinterWorkOffline(string printerName) =>
+        $"The printer \"{printerName}\" is set to \"Use printer offline\" in Windows, so the document was not sent. Open the printer's queue, clear \"Use printer offline\" in the Printer menu, then print again.";
+
+    /// <summary>Windows reports the printer offline (it cannot reach it).</summary>
+    /// <param name="printerName">The printer, as Windows lists it.</param>
+    internal static string PrinterOffline(string printerName) =>
+        $"The printer \"{printerName}\" is offline: Windows cannot reach it, so the document was not sent. Check that the printer is switched on and connected by cable or network, then print again.";
+
+    /// <summary>Windows reports the printer as not available.</summary>
+    /// <param name="printerName">The printer, as Windows lists it.</param>
+    internal static string PrinterNotAvailable(string printerName) =>
+        $"The printer \"{printerName}\" is not available at the moment, so the document was not sent. Check that the printer is switched on and connected, then print again.";
+
+    /// <summary>The printer is being removed from Windows.</summary>
+    /// <param name="printerName">The printer, as Windows lists it.</param>
+    internal static string PrinterPendingDeletion(string printerName) =>
+        $"The printer \"{printerName}\" is being removed from Windows and no longer accepts documents, so the document was not sent. Choose another printer, or add this printer again, then print again.";
+
+    /// <summary>The print server that shares the printer is offline.</summary>
+    /// <param name="printerName">The printer, as Windows lists it.</param>
+    internal static string PrintServerOffline(string printerName) =>
+        $"The computer that shares the printer \"{printerName}\" (its print server) is offline, so the document was not sent. Check that the print server is switched on and reachable on the network, then print again.";
+
+    /// <summary>The Windows Print Spooler service is not running.</summary>
+    internal static string SpoolerNotRunning() =>
+        "The Windows Print Spooler service is not running, so no printer can be used and the document was not sent. Start the Print Spooler service (in Services, or ask the person who looks after this computer), then print again.";
+
     /// <summary>The job was stopped.</summary>
     internal static string Cancelled() =>
         "Printing was cancelled before it finished, so some pages may not have been printed. Start the job again if the document is still needed.";

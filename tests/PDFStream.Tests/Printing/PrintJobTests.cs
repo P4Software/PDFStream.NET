@@ -213,16 +213,48 @@ public sealed class PrintJobTests
         Assert.Equal(0, result.PagesPrinted);
     }
 
-    /// <summary>A printer that fails part-way through reports PrinterUnavailable with the pages sent before the failure.</summary>
+    /// <summary>
+    /// A printer that fails part-way through reports PrinterUnavailable and counts no pages: the job
+    /// ends aborted, and the print system withdraws an aborted job, so the pages drawn before the
+    /// failure normally never come out.
+    /// </summary>
     [Fact]
-    public void Printer_failing_mid_job_returns_PrinterUnavailable_with_pages_already_sent()
+    public void Printer_failing_mid_job_returns_PrinterUnavailable_with_no_pages_counted()
     {
         using var controller = new FakePrintController { ThrowOnStartPage = new Win32Exception(), ThrowOnStartPageNumber = 3 };
 
         PrintResult result = PrintJob.Run(FakePdfDocument.Letter(4), [0, 1, 2, 3], TestPrinters.Settings(), "Jam", ScaleMode.FitToPage, CancellationToken.None, controller);
 
         Assert.Equal(PrintStatus.PrinterUnavailable, result.Status);
-        Assert.Equal(2, result.PagesPrinted);
+        Assert.Equal(0, result.PagesPrinted);
+        Assert.True(controller.EndedWithCancel);
+    }
+
+    /// <summary>
+    /// A cancel mid-job ends the job normally, but if closing it then fails, the pages may never
+    /// print: that is a failure with no pages counted, not a Cancelled result claiming two pages.
+    /// </summary>
+    [Fact]
+    public void Cancelled_job_that_then_fails_to_close_is_a_failure_with_no_pages_counted()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var document = new FakePdfDocument(Enumerable.Repeat(new SizeF(612, 792), 4).ToArray())
+        {
+            BeforeRender = pageIndex =>
+            {
+                if (pageIndex == 1)
+                {
+                    cancellation.Cancel();
+                }
+            },
+        };
+        using var controller = new FakePrintController { ThrowOnEndPrint = new Win32Exception() };
+
+        PrintResult result = PrintJob.Run(document, [0, 1, 2, 3], TestPrinters.Settings(), "Cancel then fail", ScaleMode.FitToPage, cancellation.Token, controller);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, result.Status);
+        Assert.Equal(0, result.PagesPrinted);
+        Assert.False(controller.EndedWithCancel);
     }
 
     /// <summary>Any other exception from the print system becomes UnknownError, with its text for whoever looks after the program.</summary>
@@ -255,7 +287,8 @@ public sealed class PrintJobTests
 
     /// <summary>
     /// A page that cannot be drawn either way stops the job with UnknownError naming the page. The job
-    /// is aborted so no half-drawn sheet is printed; the pages before it are counted as sent.
+    /// is aborted so no half-drawn sheet is printed, and since an aborted job is withdrawn from the
+    /// queue, no pages are counted.
     /// </summary>
     [Fact]
     public void Page_that_cannot_be_drawn_stops_the_job_with_a_message_naming_it()
@@ -271,7 +304,7 @@ public sealed class PrintJobTests
 
         Assert.Equal(PrintStatus.UnknownError, result.Status);
         Assert.Equal(Messages.PageFailed(3, "PDFium could not load page 3; the page may be damaged."), result.Message);
-        Assert.Equal(2, result.PagesPrinted);
+        Assert.Equal(0, result.PagesPrinted);
         Assert.True(controller.EndedWithCancel);
     }
 
@@ -295,7 +328,7 @@ public sealed class PrintJobTests
 
         Assert.Equal(PrintStatus.UnknownError, result.Status);
         Assert.Equal(Messages.PageTooLarge(2), result.Message);
-        Assert.Equal(1, result.PagesPrinted);
+        Assert.Equal(0, result.PagesPrinted);
         Assert.True(controller.EndedWithCancel);
     }
 
