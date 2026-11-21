@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Target frameworks, nullable, XML docs, licence and version come from Directory.Build.props. -->
+
+  <PropertyGroup>
+    <RootNamespace>PDFStream.NET</RootNamespace>
+    <AssemblyName>PDFStream.NET</AssemblyName>
+    <Description>Free, open-source silent PDF printing for .NET on Windows, powered by PDFium. No Adobe Reader, no licence keys, no watermarks.</Description>
+  </PropertyGroup>
+
+  <!--
+    NuGet package metadata. Authors, copyright, the MIT licence expression and the version come from
+    Directory.Build.props. There is deliberately no SourceLink package and no symbol package: the SDK's
+    own repository information (the commit the package was built from) is all the package carries.
+  -->
+  <PropertyGroup Label="NuGet package">
+    <!--
+      The package id, the title, the assembly (PDFStream.NET.dll, from AssemblyName above) and the C# namespace
+      (PDFStream.NET) all carry the same name, so what a developer installs, references and types is one name:
+      "using PDFStream.NET;". Keep them identical: renaming the assembly or namespace after release breaks every
+      caller.
+    -->
+    <PackageId>PDFStream.NET</PackageId>
+    <Title>PDFStream.NET</Title>
+    <PackageTags>pdf;print;printing;printer;silent;pdfium;windows;service</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/P4Software/PDFStream.NET</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/P4Software/PDFStream.NET</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup Label="Files shipped in the package root">
+    <!--
+      The README is the package page on nuget.org (its links are absolute for that reason). The licence and
+      the third-party notices travel with every copy of the package: the Apache-2.0 parts of PDFium require
+      that recipients get the licence texts, which are in THIRD-PARTY-NOTICES.md.
+    -->
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The engine types are internal; the tests exercise them directly. -->
+    <InternalsVisibleTo Include="PDFStream.NET.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Prebuilt PDFium (BSD-3-Clause / Apache-2.0, packaging MIT) for win-x64, win-x86 and
+      win-arm64. PDFStream.NET calls it through its own P/Invoke declarations in Engine/PdfiumNative.cs.
+      See THIRD-PARTY-NOTICES.md for why this package was chosen over the PDFiumCore bindings.
+
+      pdfium.dll is not copied into the PDFStream.NET package: this reference becomes a normal NuGet
+      dependency, and its runtimes/win-<arch>/native folders give a consuming app the pdfium.dll for its
+      processor with no extra step. Checked with separate consumer apps, under the package's earlier names and
+      then under PDFStream.NET. CHANGELOG.md lists exactly what was run and under which name; CONTRIBUTING.md
+      says how to repeat it.
+    -->
+    <PackageReference Include="bblanchon.PDFium.Win32" Version="160.0.8165" />
+  </ItemGroup>
+
+  <!--
+    System.Drawing (Bitmap, and later PrintDocument) comes from the System.Drawing.Common package
+    rather than from <UseWindowsForms>. A Windows Forms framework reference would force every
+    consumer to install the Windows Desktop runtime, which Windows services and IIS hosts (the
+    main use case) usually do not have. Each target framework gets the matching servicing line.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <PackageReference Include="System.Drawing.Common" Version="8.0.34" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <PackageReference Include="System.Drawing.Common" Version="10.0.15" />
+  </ItemGroup>
+</Project>
