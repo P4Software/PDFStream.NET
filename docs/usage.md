@@ -13,8 +13,9 @@ Windows services, scheduled tasks and IIS, read [services-and-iis.md](services-a
   print system.
 - Nothing else on the machine: no Adobe Reader, no PDF viewer, no licence key. The PDF engine (PDFium) comes
   with the package for 64-bit (x64), 32-bit (x86) and Arm64 Windows, and your build picks the right one.
-- The NuGet package is `PDFStream.NET` (`dotnet add package PDFStream.NET`); in code you write
-  `using PDFStream.NET;`.
+- The NuGet package is `PDFStream.NET`. While only prereleases exist, add it with
+  `dotnet add package PDFStream.NET --prerelease` (a plain `dotnet add package PDFStream.NET` finds no stable
+  version); in code you write `using PDFStream.NET;`.
 
 ## The three calls
 

@@ -42,7 +42,7 @@ manual release checklist rows are as open as they were for 1.0.0-rc.1.
   https, or no install command for the version being released). It expects version 1.0.0-rc.2.
 - `README.md`, `SECURITY.md` and `CONTRIBUTING.md` no longer say the package is unpublished: 1.0.0-rc.1 was
   published on nuget.org on 2026-11-21. `README.md` has a NuGet badge, and `CONTRIBUTING.md` says where the
-  package readme, the icon and the version pin live.
+  package readme, the icon and the version pin live. `docs/usage.md` adds `--prerelease` to its install line.
 - `docs/release-checklist.md` records that 1.0.0-rc.1 was published with the manual rows still Not run, and one
   reported (not signed-off) print through an installed print service.
 
@@ -67,6 +67,9 @@ On one Windows 11 x64 machine, .NET SDK 11.0.100, on 2026-11-21:
   `pdfium.dll` next to its exe was the x64 one from the PDFium package (same SHA-256).
 - `README.nuget.md` rendered through GitHub's markdown API: one table, two block quotes, all links and images
   absolute https. nuget.org renders with its own engine, which was not seen before publishing.
+- The published 1.0.0-rc.1 package names commit `e8cf1df` in its nuspec, the commit this version branches from:
+  `git diff e8cf1df -- '*.cs'` is empty, and both versions have the same dependency groups (System.Drawing.Common
+  8.0.34 and 10.0.15, bblanchon.PDFium.Win32 160.0.8165).
 - Against nuget.org: a plain `dotnet add package PDFStream.NET` stops with "There are no stable versions
   available, 1.0.0-rc.1 is the best available. Consider adding the --prerelease option", and
   `dotnet add package PDFStream.NET --prerelease` adds 1.0.0-rc.1.

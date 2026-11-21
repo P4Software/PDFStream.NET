@@ -14,7 +14,7 @@ dialog, no Adobe Reader, no licence key.
 - **Nothing to activate.** No licence keys, watermarks, expiry dates, telemetry or network calls.
 - **Nothing else to install.** No Adobe Reader or other PDF viewer: the PDFium engine comes with the package.
 - **Made for unattended printing.** Background jobs, Windows services and servers that print with nobody at the
-  screen. No dialog ever opens.
+  screen.
 - **Plain-language results.** Bad input and printer problems come back as a status and a message that says what
   went wrong and what to do next, not as exceptions.
 
@@ -102,9 +102,10 @@ Visual Studio package manager. The package, the assembly and the namespace are a
 >
 > **Verified:** the full automated test suite on `net8.0-windows` and `net10.0-windows`, in 64-bit and 32-bit
 > processes, including real prints to *Microsoft Print to PDF* whose output is checked page by page; the package
-> used from a separate app that printed through it. One real print through an installed print service on one PC
-> has also been reported as working; that is a single report, so the checklist row for Windows services stays
-> open.
+> used from a separate app that printed through it.
+>
+> **Reported, not verified:** one real print through an installed print service on one PC was reported as
+> working. That is a single report, so the checklist row for Windows services stays open.
 >
 > **Not verified yet:** Arm64 hardware, a scheduled task, IIS, and other physical and duplex printers. These rows
 > of the [release checklist](https://github.com/P4Software/PDFStream.NET/blob/main/docs/release-checklist.md) are still open. The stable 1.0.0 follows
