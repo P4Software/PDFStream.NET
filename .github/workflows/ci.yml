@@ -1,0 +1,188 @@
+# Continuous integration for PDFStream.
+#
+# On every push and pull request this workflow builds the solution, runs the tests for both target
+# frameworks (net8.0-windows and net10.0-windows), packs the NuGet package and publishes the test-print
+# sample as one self-contained exe. The package and the sample are only kept as artifacts of the run:
+# nothing is published to NuGet or anywhere else, and the workflow uses no secrets.
+#
+# Every command runs from the repository root, because global.json there switches "dotnet test" to
+# Microsoft Testing Platform. That is why the test steps use --project and --framework (and never the
+# old VSTest --filter option).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # No usage data leaves the build: the .NET CLI and Microsoft Testing Platform both honour these.
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  TESTINGPLATFORM_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  build-test-pack:
+    name: Build, test and pack (windows-latest)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install the .NET SDKs
+        uses: actions/setup-dotnet@v6
+        with:
+          # The .NET 10 SDK builds both targets and runs the tests through Microsoft Testing Platform;
+          # the .NET 8 install brings the runtime the net8.0-windows tests run on.
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Show the .NET SDK in use
+        run: dotnet --version
+
+      # Reports, never fails. Eight facade tests and the seven real-print tests need the
+      # "Microsoft Print to PDF" printer and skip themselves (with a reason) when it is missing, so this
+      # step and the skipped-test report below make a silent skip visible.
+      - name: Report the printer the real-print tests need
+        continue-on-error: true
+        run: |
+          try {
+            $printer = Get-Printer -Name 'Microsoft Print to PDF' -ErrorAction SilentlyContinue
+            if ($printer) {
+              "Microsoft Print to PDF is installed on this runner (driver: $($printer.DriverName)). The tests that print to it will run."
+            } else {
+              "::warning title=Printer missing::Microsoft Print to PDF is not installed on this runner. The facade and real-print tests that need it will be skipped; see the skipped-test report."
+            }
+            $spooler = Get-Service -Name Spooler -ErrorAction SilentlyContinue
+            "Print Spooler service: $(if ($spooler) { $spooler.Status } else { 'not found' })"
+          } catch {
+            "::warning title=Printer check failed::Could not check the printers: $($_.Exception.Message)"
+          }
+          exit 0
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test (net8.0-windows)
+        run: >-
+          dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj
+          --framework net8.0-windows --configuration Release --no-build
+          --results-directory artifacts/test-results
+          --report-xunit-trx --report-xunit-trx-filename net8.0-windows.trx
+
+      - name: Test (net10.0-windows)
+        run: >-
+          dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj
+          --framework net10.0-windows --configuration Release --no-build
+          --results-directory artifacts/test-results
+          --report-xunit-trx --report-xunit-trx-filename net10.0-windows.trx
+
+      # Reports, never fails: counts the skipped tests in each framework's results and lists them with
+      # the reason each test gave, in the log and on the run's summary page.
+      - name: Report skipped tests
+        if: always()
+        continue-on-error: true
+        run: |
+          try {
+            $lines = @('### Test results', '')
+            $files = @(Get-ChildItem artifacts/test-results -Filter *.trx -ErrorAction SilentlyContinue)
+            if ($files.Count -eq 0) { $lines += 'No test result files were found.' }
+            foreach ($file in $files) {
+              [xml]$trx = Get-Content $file.FullName -Raw
+              $results = @($trx.TestRun.Results.UnitTestResult)
+              $passed = @($results | Where-Object { $_.outcome -eq 'Passed' }).Count
+              $failed = @($results | Where-Object { $_.outcome -eq 'Failed' }).Count
+              $skipped = @($results | Where-Object { $_.outcome -eq 'NotExecuted' })
+              $lines += "**$($file.BaseName)**: $($results.Count) tests, $passed passed, $failed failed, $($skipped.Count) skipped"
+              foreach ($test in $skipped) {
+                $reason = "$($test.Output.StdOut)".Trim()
+                $lines += "- skipped: $($test.testName)$(if ($reason) { " ($reason)" })"
+              }
+              if ($skipped.Count -gt 0) { "::warning title=Skipped tests::$($skipped.Count) tests were skipped on $($file.BaseName)." }
+              $lines += ''
+            }
+            $lines | ForEach-Object { $_ }
+            if ($env:GITHUB_STEP_SUMMARY) { $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+          } catch {
+            "::warning title=Skipped-test report failed::$($_.Exception.Message)"
+          }
+          exit 0
+
+      - name: Upload the test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
+
+      - name: Pack the NuGet package
+        run: dotnet pack src/PDFStream/PDFStream.csproj --configuration Release --no-build --output artifacts/package
+
+      # Fails the run if the package lost its licence, notices, readme, metadata or PDFium dependency, or
+      # picked up a file type that has no business in it (keys, certificates, settings, scripts).
+      - name: Check the package contents
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $package = Get-ChildItem artifacts/package -Filter 'PDFStream.*.nupkg' | Select-Object -First 1
+          if (-not $package) { throw 'No PDFStream package was produced.' }
+          $zip = [IO.Compression.ZipFile]::OpenRead($package.FullName)
+          try {
+            $entries = @($zip.Entries | ForEach-Object { $_.FullName })
+            $reader = [IO.StreamReader]::new(($zip.Entries | Where-Object { $_.FullName -eq 'PDFStream.nuspec' }).Open())
+            [xml]$nuspec = $reader.ReadToEnd()
+            $reader.Dispose()
+          } finally { $zip.Dispose() }
+          $problems = @()
+          foreach ($required in 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'lib/net8.0-windows7.0/PDFStream.dll', 'lib/net10.0-windows7.0/PDFStream.dll') {
+            if ($entries -notcontains $required) { $problems += "missing file: $required" }
+          }
+          $metadata = $nuspec.package.metadata
+          if ($metadata.license.'#text' -ne 'MIT') { $problems += 'the licence expression is not MIT' }
+          if ($metadata.readme -ne 'README.md') { $problems += 'the package readme is not README.md' }
+          if ($metadata.authors -ne 'P4 Software') { $problems += 'the authors are not P4 Software' }
+          if ($metadata.repository.url -ne 'https://github.com/P4Software/PDFStream') { $problems += 'the repository URL is missing or wrong' }
+          foreach ($group in @($metadata.dependencies.group)) {
+            if (@($group.dependency | ForEach-Object { $_.id }) -notcontains 'bblanchon.PDFium.Win32') { $problems += "$($group.targetFramework) does not depend on bblanchon.PDFium.Win32 (pdfium.dll)" }
+          }
+          $unexpected = @($entries | Where-Object { $_ -match '\.(snk|pfx|p12|pem|key|cer|ps1|cmd|bat|json|config)$' })
+          if ($unexpected.Count -gt 0) { $problems += "unexpected files: $($unexpected -join ', ')" }
+          "Package: $($package.Name)"; $entries | Sort-Object | ForEach-Object { "  $_" }
+          if ($problems.Count -gt 0) { $problems | ForEach-Object { "::error title=Package check::$_" }; exit 1 }
+          'The package has the licence, the third-party notices, the readme, the metadata and the PDFium dependency.'
+
+      - name: Upload the NuGet package
+        uses: actions/upload-artifact@v7
+        with:
+          name: nuget-package
+          path: artifacts/package
+          if-no-files-found: error
+
+      # One exe that includes the .NET runtime and pdfium.dll, so a person can double-click it on a
+      # machine without .NET installed. Not trimmed: the settings reader relies on reflection.
+      - name: Publish the test-print sample (win-x64, self-contained, single file)
+        run: >-
+          dotnet publish samples/PDFStream.TestPrint/PDFStream.TestPrint.csproj
+          --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded
+          -p:PublishDocumentationFiles=false
+          --output artifacts/testprint
+
+      - name: Upload the test-print sample
+        uses: actions/upload-artifact@v7
+        with:
+          name: PDFStream.TestPrint-win-x64
+          path: artifacts/testprint
+          if-no-files-found: error
