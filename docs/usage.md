@@ -217,6 +217,12 @@ Read this before you print PDFs that come from outside your organisation (upload
   one lock for the whole process around every PDFium call, including drawing a page onto the printer, which
   runs inside the printer driver. A driver that hangs while a page is drawn keeps that lock, and every other
   print in the same process waits behind it. A worker process per printer (or per job) contains this as well.
+- **A PDF can be built to use a lot of memory.** PDFium has few limits of its own, so a crafted file can make
+  printing use far more memory than its size suggests. Form printing adds one such case: a value that pages
+  inherit from the PDF's page tree, written inline instead of as a separate object, is copied once for every
+  page with fields. In a test, a 1.2 MB file whose 100 pages with fields inherit an inline list of 100,000
+  numbers made memory grow by about 600 MB while its pages were drawn. Ordinary PDFs inherit only a few
+  references this way. A worker process (above) contains such files as well.
 - **Cancellation is checked between pages only.** The token is checked before the PDF is opened, after it is
   opened and between pages. It cannot interrupt a page that is being drawn, a driver that hangs, or the opening
   of a very large PDF.
@@ -245,13 +251,14 @@ refused with a message naming the cause. A printer that only *reports* Offline i
 
 Filled-in form fields print: text fields, checkboxes, radio buttons, lists and the other fields of an
 ordinary PDF form (an AcroForm), with the values they hold. PDFium, the PDF engine, never draws form fields
-when it draws a page, so before a page with fields is drawn for the first time, PDFStream.net makes a copy of that
-page in its own copy of the PDF in memory, draws the fields into the copy exactly as they print, and prints the
-copy instead of the page. The copy keeps everything the page shows, including fonts, images and page sizes it
-takes from elsewhere in the PDF. Before the copy is used, PDFStream.net checks that it looks exactly like the page;
-if it does not (this happens on a page with layers that the PDF switches off, because the copy's layers are not
-the ones the PDF's layer settings name), the fields are drawn into the page itself instead, which keeps those
-layers off the paper. Your file or byte array is never changed, and pages without fields are drawn untouched.
+when it draws a page. So when the first page with fields is about to be printed, PDFStream.net copies all the pages
+with fields that the print call prints, in one go, within its own copy of the PDF in memory, draws the fields
+into each copy exactly as they print, and prints the copies instead of the pages. A copy keeps everything its
+page shows, including fonts, images and page sizes it takes from elsewhere in the PDF. Before a copy is used,
+PDFStream.net checks that it carries all of the page's fields and looks exactly like the page. If it does not
+(this happens on a page with layers that the PDF switches off, because the copy's layers are not the ones the
+PDF's layer settings name), the fields are drawn into the page itself instead, which keeps those layers off the
+paper. Your file or byte array is never changed, and pages without fields are drawn untouched.
 
 - **Fields print as they print from a PDF viewer.** A field that is not marked for printing (a "screen only"
   field, such as an instruction or a button) stays off the paper.
@@ -267,12 +274,23 @@ layers off the paper. Your file or byte array is never changed, and pages withou
 - If the copy of a page cannot be used for any reason (see the known limitation below), the fields are drawn
   into the page itself instead. Only if that fails too does the page print without its fields, as earlier
   versions printed it.
-- **A page with fields costs a little more.** It is copied, drawn twice at low resolution for the check above
-  and read once more, and until the print call returns its copy holds a second copy of what the page uses (its
-  fonts and images, for example) in memory. Pages without fields cost nothing extra.
+- **A PDF with fields costs a little more.** The pages to be printed are read once more to find the fields,
+  each page with fields is drawn twice at low resolution for the check above and read once more, and until the
+  print call returns the copies hold one more copy of what those pages use (their fonts and images, for
+  example). What several pages share is copied once, so this is at most about the size of the PDF file. A PDF
+  without fields costs nothing extra.
+- **The copy budget is 64 MB.** The copies are made only for a PDF of at most 64 MB. For a larger PDF, the
+  fields of every page are drawn into the page itself. That is right for most pages; only a page that takes
+  fonts or images from the PDF's page tree prints without them (see the known limitation below). Nothing is
+  reported as an error: the print succeeds as usual.
+- **Form printing relies on a PDFium function marked experimental.** The copies are made with
+  `FPDF_ImportPagesByIndex`, which PDFium marks as experimental. It has been tested only with the PDFium build
+  PDFStream.net depends on (160.0.8165, from the `bblanchon.PDFium.Win32` package). If your application uses another
+  `pdfium.dll` in which that function is missing or fails, the fields are drawn into each page itself instead:
+  they still print, but a page that takes fonts or images from the PDF's page tree prints without them.
 - **Known limitation.** A page that has form fields *and* takes its fonts or images from the PDF's page tree
   instead of carrying them itself, *and* whose copy cannot be used, can print without those fonts or images
   (the fields are then drawn into the page itself, which hides what it takes from the page tree). The copy
-  cannot be used, for example, on a page with layers the PDF switches off, or on a page that refers to
-  something the file does not contain (a damaged PDF). Such files are rare; see
+  cannot be used, for example, on a page with layers the PDF switches off, on a page that refers to something
+  the file does not contain (a damaged PDF), or in a PDF over the copy budget. Such files are rare; see
   [troubleshooting.md](troubleshooting.md#form-fields-are-missing-on-the-paper) for a workaround.

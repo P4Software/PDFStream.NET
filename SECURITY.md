@@ -38,6 +38,12 @@ PDFium are taken by updating that dependency to a newer build and releasing a ne
 application can also reference a newer `bblanchon.PDFium.Win32` directly, which NuGet then uses instead; PDFStream.net
 has only been tested with the version it depends on.
 
+Printing form fields uses one PDFium function that PDFium marks as experimental: `FPDF_ImportPagesByIndex`, which
+copies pages within PDFStream.net's in-memory copy of the PDF. It has been tested only with PDFium 160.0.8165, the
+version PDFStream.net depends on. With a `pdfium.dll` in which that function is missing or fails, form fields still
+print, drawn into each page itself, but a page that takes its fonts or images from the PDF's page tree then prints
+without them; see [Form fields](docs/usage.md#form-fields).
+
 ## Known limits
 
 PDFium runs inside the program that calls PDFStream.net, without a sandbox, so a malformed or hostile PDF that crashes

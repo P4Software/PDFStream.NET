@@ -245,10 +245,12 @@ PDFStream.net prints filled-in form fields (see [usage.md](usage.md#form-fields)
   printing (see [usage.md](usage.md#form-fields)). A page with fields is normally printed from a copy that has
   its fields drawn in. When that copy cannot be used, the fields are drawn into the page itself instead, and if
   the page takes its fonts or images from the PDF's page tree (instead of carrying them itself), those are then
-  hidden. The copy cannot be used, for example, when the PDF switches layers off on that page, or when the page
-  refers to something the file does not contain (a damaged PDF). Print or save the filled form to a plain PDF
-  first (for example with "Microsoft Print to PDF" from a viewer, or with the "flatten" option of the tool that
-  filled it) and print that file.
+  hidden. The copy cannot be used, for example, when the PDF switches layers off on that page, when the page
+  refers to something the file does not contain (a damaged PDF), when the PDF is larger than 64 MB (the copy
+  budget), or when your application uses a `pdfium.dll` other than the one PDFStream.net was tested with (see
+  [usage.md](usage.md#form-fields)). Print or save the filled form to a plain PDF first (for example with
+  "Microsoft Print to PDF" from a viewer, or with the "flatten" option of the tool that filled it) and print
+  that file.
 
 ### A PDF marked "printing not allowed" printed anyway
 

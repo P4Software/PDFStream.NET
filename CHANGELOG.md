@@ -23,15 +23,19 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   and a queue that cannot be opened (a stopped Print Spooler included) are refused with a message naming the
   cause. A printer that only reports Offline is not refused.
 - Filled-in form fields (text fields, checkboxes and the other fields of an ordinary PDF form) print on both
-  print paths. PDFium never draws form fields when it draws a page, so before a page with fields is first
-  drawn PDFStream.net copies that page inside its own in-memory copy of the PDF, with everything the page inherits
-  from the PDF's page tree (its fonts, images and page boxes included), flattens the fields into the copy as
-  they print, and prints the copy in place of the page. The copy is used only if it looks exactly like the
-  page; a page with layers the PDF switches off has its fields drawn into the page itself instead, which keeps
-  those layers off the paper. Everything else on the page prints as before; fields not marked for printing stay
-  off the paper, and pages without fields are untouched. Known limitation: a page with fields, switched-off
-  layers and fonts or images taken from the PDF's page tree can print without those fonts or images. XFA-only
-  forms are not supported (the bundled PDFium is built without XFA).
+  print paths. PDFium never draws form fields when it draws a page, so PDFStream.net copies the pages with fields
+  that a print call prints, in one go, inside its own in-memory copy of the PDF, with everything each page
+  inherits from the PDF's page tree (its fonts, images and page boxes included), flattens the fields into the
+  copies as they print, and prints the copies in place of the pages. What the pages share is copied once, and
+  the copies are made only for a PDF of at most 64 MB (the copy budget). A copy is used only if it carries all
+  of the page's annotations and looks exactly like the page; otherwise (for example on a page with layers the
+  PDF switches off, a page with a damaged reference, or a PDF over the budget) the fields are drawn into the
+  page itself, and they still print. Everything else on the page prints as before; fields not marked for
+  printing stay off the paper, and pages without fields are untouched. Known limitation: a page with fields
+  that takes fonts or images from the PDF's page tree, and whose copy cannot be used, prints without those
+  fonts or images. Copying relies on `FPDF_ImportPagesByIndex`, which PDFium marks as experimental, tested only
+  with the bundled PDFium 160.0.8165. XFA-only forms are not supported (the bundled PDFium is built without
+  XFA).
 - Printing straight onto the printer's page as drawing commands, with a picture fallback (at most 300 dpi)
   for drivers that refuse that; each page is scaled and turned on its own. Copies are made by the driver when
   it can, otherwise by sending the document again in the same job.
@@ -73,18 +77,20 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
 ### Verified
 
 Test hosts actually run for this change (one Windows 11 x64 machine, .NET SDK 11.0.100; the test counts are
-from the last run, on 2026-11-21):
+from the last run, on 2026-11-21, Release build, on the code with the form-printing changes of that day):
 
-- win-x64: `net8.0-windows` (390 tests) and `net10.0-windows` (415 tests), all passed, none skipped.
-- win-x86: `net8.0-windows` (390 tests) and `net10.0-windows` (415 tests)
+- win-x64: `net8.0-windows` (450 tests) and `net10.0-windows` (475 tests), all passed, none skipped.
+- win-x86: `net8.0-windows` (450 tests) and `net10.0-windows` (475 tests)
   (`dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --arch x86`), all passed, none
-  skipped; the tests logged `Process architecture: X86`. On the first 32-bit `net10.0-windows` run of the
-  day, one real-print test timed out waiting for *Microsoft Print to PDF* to finish writing its file; the
-  re-run passed.
+  skipped; the form, engine, real-print and memory tests logged `Process architecture: X86`. On an earlier
+  32-bit `net10.0-windows` run that day, one real-print test timed out after 30 seconds waiting for
+  *Microsoft Print to PDF* to finish writing its file, and the re-run passed; that wait is now 120 seconds, and
+  a timeout reports the state of the print queue.
 - win-arm64: **not run**. No arm64 machine was available, and an x64 machine cannot execute arm64
   code. The arm64 `pdfium.dll` is present in the package and exports the same functions, but
   loading it is unverified.
-- On 2026-11-20: the NuGet package from a separate consumer app outside the repository, restored from a local folder
+- On 2026-11-20, before the package was renamed to `PDFStream.net` (so under its earlier id): the NuGet package
+  from a separate consumer app outside the repository, restored from a local folder
   into an empty package cache, with the .NET 10 SDK (10.0.404) on `net8.0-windows` and `net10.0-windows` and
   the .NET 8 SDK (8.0.428) on `net8.0-windows`: for win-x64, win-x86 and win-arm64, both `dotnet build -r`
   and `dotnet publish -r` put the `pdfium.dll` of that architecture next to the exe (checked by SHA-256
@@ -97,5 +103,10 @@ from the last run, on 2026-11-21):
   `pdfium.dll` of the right architecture was next to the exe. The package holds `lib/net8.0-windows7.0/PDFStream.net.dll`
   and `lib/net10.0-windows7.0/PDFStream.net.dll`; the self-contained test-print sample was published as
   `PDFStream.net.TestPrint.exe` and its dry run says `PDFStream.net test print`.
+- On 2026-11-21, after the form-printing changes of that day: `dotnet pack -c Release` into a folder outside the
+  repository gave `PDFStream.net.1.0.0-preview.nupkg`, and the package check from `ci.yml` passed against it. A
+  separate win-x64 app on `net10.0-windows` restored it from that folder into an empty package cache, reported
+  the assembly and the namespace as `PDFStream.net`, and printed a one-page PDF with a filled form field to
+  *Microsoft Print to PDF* (status Ok, one page, output file written; its content was not inspected).
 - On 2026-11-20: the self-contained single-file test-print sample (win-x64) printed a two-page PDF to
   *Microsoft Print to PDF*.

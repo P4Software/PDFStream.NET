@@ -142,17 +142,21 @@ the .NET 10 runtime.
 
 ## What has been verified
 
-Run on 2026-11-20 on one Windows 11 x64 machine:
+On one Windows 11 x64 machine:
 
 - The full test suite for `net8.0-windows` and `net10.0-windows`, in a 64-bit and in a 32-bit (x86) process,
-  including real prints to *Microsoft Print to PDF* whose output is checked page by page for ink.
-- The package, from a separate app outside this repository: built and published for win-x64, win-x86 and
-  win-arm64 on both frameworks, the right `pdfium.dll` lands next to the app; the x64 and x86 builds printed
-  a two-page PDF to *Microsoft Print to PDF*. On 2026-11-21, under its name `PDFStream.net`, it was packed and
-  checked again from a separate win-x64 app on `net10.0-windows`, which printed a page to *Microsoft Print to
-  PDF*. After the assembly and namespace were renamed to `PDFStream.net` (also 2026-11-21), the package was packed
-  once more and used from separate win-x64 and win-x86 apps with `using PDFStream.net;`; each printed a
-  two-page PDF to *Microsoft Print to PDF* and the right `pdfium.dll` landed next to the exe.
+  including real prints to *Microsoft Print to PDF* whose output is checked page by page for ink. Last run on
+  2026-11-21, on the current code: all tests passed, none skipped.
+- The package, from a separate app outside this repository. On 2026-11-20, before the package was renamed to
+  `PDFStream.net`: built and published for win-x64, win-x86 and win-arm64 on both frameworks, the right
+  `pdfium.dll` lands next to the app, and the x64 and x86 builds printed a two-page PDF to *Microsoft Print to
+  PDF*. On 2026-11-21, under its name `PDFStream.net`, it was packed and checked again from a separate win-x64 app
+  on `net10.0-windows`, which printed a page to *Microsoft Print to PDF*. After the assembly and namespace were
+  renamed to `PDFStream.net` (also 2026-11-21), the package was packed once more and used from separate win-x64
+  and win-x86 apps on `net10.0-windows` with `using PDFStream.net;`; each printed a two-page PDF to *Microsoft
+  Print to PDF* and the right `pdfium.dll` landed next to the exe. Packed again on 2026-11-21 after the latest
+  form-printing changes, it was used from a separate win-x64 app on `net10.0-windows`, which printed a page
+  with a filled form field to *Microsoft Print to PDF*.
 
 Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream.net/blob/main/docs/release-checklist.md)): running on an Arm64
 PC, physical printers (duplex, network printers), and printing from a Windows service, a scheduled task

@@ -52,8 +52,10 @@
 
       pdfium.dll is not copied into the PDFStream.net package: this reference becomes a normal NuGet
       dependency, and its runtimes/win-<arch>/native folders give a consuming app the pdfium.dll for its
-      processor with no extra step (checked with a separate consumer app for win-x64, win-x86, win-arm64
-      and a build with no runtime identifier, on net8.0-windows and net10.0-windows; see CONTRIBUTING.md).
+      processor with no extra step. Checked with separate consumer apps: on 2026-11-20, before the package
+      was renamed to PDFStream.net, for win-x64, win-x86, win-arm64 and a build with no runtime identifier, on
+      net8.0-windows and net10.0-windows; under the id PDFStream.net, on 2026-11-21, for win-x64 and win-x86 on
+      net10.0-windows only. CHANGELOG.md lists what was run; CONTRIBUTING.md says how to repeat it.
     -->
     <PackageReference Include="bblanchon.PDFium.Win32" Version="160.0.8165" />
   </ItemGroup>
