@@ -57,7 +57,7 @@ internal sealed class FakePrintController : PrintController, IDisposable
     /// </summary>
     public bool? EndedWithCancel { get; private set; }
 
-    /// <summary>When set, starting the job throws this, like an offline or deleted printer.</summary>
+    /// <summary>When set, starting the job throws this, like a printer that cannot be opened or was deleted.</summary>
     public Exception? ThrowOnStartPrint { get; init; }
 
     /// <summary>

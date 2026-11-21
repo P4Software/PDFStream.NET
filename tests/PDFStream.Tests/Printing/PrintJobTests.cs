@@ -182,7 +182,7 @@ public sealed class PrintJobTests
     }
 
     /// <summary>
-    /// A printer that cannot be opened (offline, deleted, refused) makes the job fail fast with
+    /// A printer that cannot be opened when the job starts (deleted, unreachable, refused) makes the job fail fast with
     /// PrinterUnavailable and the standard message, instead of throwing or hanging.
     /// </summary>
     [Fact]

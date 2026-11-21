@@ -33,9 +33,9 @@ internal static class PrinterLocator
     /// <see cref="PrintStatus.Ok"/>, <see cref="PrintStatus.InvalidOptions"/> (empty name, fewer than one
     /// copy, unknown paper source, unusable output file), <see cref="PrintStatus.PrinterNotFound"/> or
     /// <see cref="PrintStatus.PrinterUnavailable"/> (the printer cannot be opened, cannot do what was
-    /// asked, or its queue is paused, offline, set to work offline, not available, being deleted or
-    /// behind an offline print server; the message names the cause). The queue state is read with the
-    /// real Windows print spooler.
+    /// asked, or its queue is paused, set to "Use printer offline", not available or being deleted; the
+    /// message names the cause). The queue state is read with the real Windows print spooler. An
+    /// "offline" report alone does not refuse the printer (see <see cref="PrinterStatusCheck"/>).
     /// </returns>
     internal static PrintStatus TryCreateSettings(
         PrintOptions options,
@@ -112,8 +112,8 @@ internal static class PrinterLocator
                 return PrintStatus.PrinterUnavailable;
             }
 
-            // A paused or offline queue would accept the job and hold it, and the caller would be told
-            // it printed. Checked here, where every print call gets its settings, so the job is never
+            // A paused queue (or one set to "Use printer offline") would accept the job and hold it, and
+            // the caller would be told it printed. Checked here, where every print call gets its settings, so the job is never
             // started; the check itself never throws and never blocks on a status it cannot read.
             PrintStatus ready = PrinterStatusCheck.Check(statusProbe, installedName, out message);
             if (ready != PrintStatus.Ok)

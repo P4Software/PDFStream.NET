@@ -7,8 +7,8 @@ namespace PDFStream.Printing;
 
 /// <summary>
 /// Prints chosen pages of an open PDF as one Windows print job, through <see cref="PrintDocument"/>
-/// without a progress dialog. Every way the job can go wrong (printer offline, a page that cannot be
-/// drawn, cancellation) comes back as a <see cref="PrintResult"/>; nothing is thrown.
+/// without a progress dialog. Every way the job can go wrong (a printer that cannot be opened, a page
+/// that cannot be drawn, cancellation) comes back as a <see cref="PrintResult"/>; nothing is thrown.
 /// </summary>
 internal static class PrintJob
 {

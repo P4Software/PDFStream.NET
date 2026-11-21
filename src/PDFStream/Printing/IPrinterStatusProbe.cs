@@ -7,19 +7,25 @@ internal enum PrinterStatusReadOutcome
     Read,
 
     /// <summary>
-    /// They could not be read (the queue could not be opened or asked). Printing goes ahead as if
-    /// the printer were fine: an unreadable status is never a reason to refuse a job.
+    /// The queue opened, but its status could not be read. Printing goes ahead as if the printer were
+    /// fine: an unreadable status is never a reason to refuse a job.
     /// </summary>
     Unreadable,
 
     /// <summary>The Windows Print Spooler service is not running, so no printer can be used at all.</summary>
     SpoolerNotRunning,
+
+    /// <summary>
+    /// The queue could not be opened at all, for a reason other than a stopped spooler (for example the
+    /// account running the program is not allowed to use the printer, or the printer no longer exists).
+    /// </summary>
+    CannotOpen,
 }
 
 /// <summary>
 /// Reads a printer queue's status as Windows reports it. It exists as a seam: the real reading comes
-/// from the print spooler, but tests hand in a fake so every queue state (paused, offline, paper out,
-/// and so on) can be checked without pausing or unplugging a real printer.
+/// from the print spooler, but tests hand in a fake so every queue state (paused, not available, paper
+/// out, and so on) can be checked without pausing or unplugging a real printer.
 /// </summary>
 internal interface IPrinterStatusProbe
 {

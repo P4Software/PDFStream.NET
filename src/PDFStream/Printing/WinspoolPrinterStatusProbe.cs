@@ -4,8 +4,10 @@ namespace PDFStream.Printing;
 
 /// <summary>
 /// The real printer status, read from the Windows print spooler with OpenPrinter and GetPrinter
-/// (PRINTER_INFO_2). It never throws for a printer problem: anything it cannot read is reported as
-/// <see cref="PrinterStatusReadOutcome.Unreadable"/>.
+/// (PRINTER_INFO_2). It never throws for a printer problem: a queue that cannot be opened is reported
+/// as <see cref="PrinterStatusReadOutcome.SpoolerNotRunning"/> or
+/// <see cref="PrinterStatusReadOutcome.CannotOpen"/>, and a status that cannot be read from an open
+/// queue as <see cref="PrinterStatusReadOutcome.Unreadable"/>.
 /// </summary>
 /// <remarks>
 /// The declarations are written from the documented Win32 API (winspool.drv). They use the
@@ -39,7 +41,7 @@ internal sealed class WinspoolPrinterStatusProbe : IPrinterStatusProbe
         {
             return Marshal.GetLastPInvokeError() == RpcServerUnavailable
                 ? PrinterStatusReadOutcome.SpoolerNotRunning
-                : PrinterStatusReadOutcome.Unreadable;
+                : PrinterStatusReadOutcome.CannotOpen;
         }
 
         try

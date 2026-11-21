@@ -6,10 +6,11 @@ using Xunit;
 namespace PDFStream.Tests.Printing;
 
 /// <summary>
-/// Tests the pre-flight printer status check: a queue that is paused, offline, set to work offline,
-/// unavailable, being deleted or behind an offline server is refused with a message naming the cause;
-/// paper, toner and similar problems a person fixes at the printer are not; and a status that cannot be
-/// read never blocks printing. A fake probe supplies every state; one test reads the real system.
+/// Tests the pre-flight printer status check: a queue that is paused, set to "Use printer offline",
+/// not available or being deleted, or that cannot be opened (Print Spooler stopped included), is refused
+/// with a message naming the cause. Offline reports, paper, toner and similar problems are not refused,
+/// and a status that cannot be read never blocks printing. A fake probe supplies every state; two tests
+/// use the real system.
 /// </summary>
 public sealed class PrinterStatusCheckTests
 {
@@ -19,10 +20,8 @@ public sealed class PrinterStatusCheckTests
     /// <summary>Each blocking status bit (and the work-offline attribute) is PrinterUnavailable with its own message.</summary>
     [Theory]
     [InlineData(0x00000001u, 0u, "paused")]
-    [InlineData(0x00000080u, 0u, "offline")]
     [InlineData(0x00001000u, 0u, "not-available")]
     [InlineData(0x00000004u, 0u, "pending-deletion")]
-    [InlineData(0x02000000u, 0u, "server-offline")]
     [InlineData(0u, 0x00000400u, "work-offline")]
     public void Blocking_queue_state_is_PrinterUnavailable_naming_the_cause(uint status, uint attributes, string cause)
     {
@@ -37,10 +36,16 @@ public sealed class PrinterStatusCheckTests
     }
 
     /// <summary>
-    /// States a person fixes at the printer (paper, jams, toner, doors, intervention) and busy or
-    /// informational states do not block: the job queues and prints once the printer is ready.
+    /// States a person fixes at the printer (paper, jams, toner, doors, intervention), offline reports,
+    /// and busy or informational states do not block: the job queues and prints once the printer is ready.
     /// </summary>
     [Theory]
+
+    // Offline and server offline do not block. Network printers often report OFFLINE through SNMP
+    // status while they print perfectly well, and a printer that really is switched off simply queues
+    // the job until it comes back, so refusing would break working printing.
+    [InlineData(0x00000080u)] // offline
+    [InlineData(0x02000000u)] // server offline
     [InlineData(0x00000002u)] // error
     [InlineData(0x00000008u)] // paper jam
     [InlineData(0x00000010u)] // paper out
@@ -75,7 +80,7 @@ public sealed class PrinterStatusCheckTests
     [Fact]
     public void All_non_blocking_bits_together_do_not_block()
     {
-        const uint blocking = 0x00000001u | 0x00000004u | 0x00000080u | 0x00001000u | 0x02000000u;
+        const uint blocking = 0x00000001u | 0x00000004u | 0x00001000u;
         const uint workOffline = 0x00000400u;
 
         PrintStatus result = PrinterStatusCheck.Check(FakeStatusProbe.Reading(~blocking, ~workOffline), Printer, out _);
@@ -108,7 +113,7 @@ public sealed class PrinterStatusCheckTests
         Assert.Equal(Messages.Ok(), message);
     }
 
-    /// <summary>A status the probe could not read never blocks printing, whatever values came with it.</summary>
+    /// <summary>A queue that opened but whose status could not be read never blocks printing, whatever values came with it.</summary>
     [Fact]
     public void Unreadable_status_does_not_block()
     {
@@ -125,6 +130,21 @@ public sealed class PrinterStatusCheckTests
 
         Assert.Equal(PrintStatus.PrinterUnavailable, result);
         Assert.Equal(Messages.SpoolerNotRunning(), message);
+        Assert.Contains("Print Spooler", message);
+    }
+
+    /// <summary>
+    /// A printer queue that cannot be opened is PrinterUnavailable. The check only runs for a printer
+    /// found in the installed list, so a failed open means the installed queue itself is unusable.
+    /// </summary>
+    [Fact]
+    public void Printer_queue_that_cannot_be_opened_is_PrinterUnavailable()
+    {
+        PrintStatus result = PrinterStatusCheck.Check(new FakeStatusProbe(PrinterStatusReadOutcome.CannotOpen), Printer, out string message);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, result);
+        Assert.Equal(Messages.PrinterCannotBeOpened(Printer), message);
+        Assert.Contains(Printer, message);
         Assert.Contains("Print Spooler", message);
     }
 
@@ -147,13 +167,13 @@ public sealed class PrinterStatusCheckTests
         Assert.True((attributes & 0x40u) != 0, $"Expected the LOCAL attribute, got status 0x{status:X8}, attributes 0x{attributes:X8}.");
     }
 
-    /// <summary>The real probe on a printer that does not exist reports an unreadable status instead of throwing.</summary>
+    /// <summary>The real probe on a printer that does not exist reports that it cannot be opened, instead of throwing.</summary>
     [Fact]
-    public void Real_probe_on_an_unknown_printer_is_unreadable_not_an_exception()
+    public void Real_probe_on_an_unknown_printer_reports_it_cannot_be_opened()
     {
         PrinterStatusReadOutcome outcome = WinspoolPrinterStatusProbe.Instance.TryRead("No such printer " + Guid.NewGuid().ToString("N"), out _, out _);
 
-        Assert.Equal(PrinterStatusReadOutcome.Unreadable, outcome);
+        Assert.Equal(PrinterStatusReadOutcome.CannotOpen, outcome);
     }
 
     /// <summary>
@@ -173,10 +193,8 @@ public sealed class PrinterStatusCheckTests
     private static string ExpectedMessage(string cause) => cause switch
     {
         "paused" => Messages.PrinterPaused(Printer),
-        "offline" => Messages.PrinterOffline(Printer),
         "not-available" => Messages.PrinterNotAvailable(Printer),
         "pending-deletion" => Messages.PrinterPendingDeletion(Printer),
-        "server-offline" => Messages.PrintServerOffline(Printer),
         "work-offline" => Messages.PrinterWorkOffline(Printer),
         _ => throw new ArgumentOutOfRangeException(nameof(cause), cause, null),
     };

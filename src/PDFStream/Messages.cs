@@ -98,11 +98,6 @@ internal static class Messages
     internal static string PrinterWorkOffline(string printerName) =>
         $"The printer \"{printerName}\" is set to \"Use printer offline\" in Windows, so the document was not sent. Open the printer's queue, clear \"Use printer offline\" in the Printer menu, then print again.";
 
-    /// <summary>Windows reports the printer offline (it cannot reach it).</summary>
-    /// <param name="printerName">The printer, as Windows lists it.</param>
-    internal static string PrinterOffline(string printerName) =>
-        $"The printer \"{printerName}\" is offline: Windows cannot reach it, so the document was not sent. Check that the printer is switched on and connected by cable or network, then print again.";
-
     /// <summary>Windows reports the printer as not available.</summary>
     /// <param name="printerName">The printer, as Windows lists it.</param>
     internal static string PrinterNotAvailable(string printerName) =>
@@ -113,10 +108,10 @@ internal static class Messages
     internal static string PrinterPendingDeletion(string printerName) =>
         $"The printer \"{printerName}\" is being removed from Windows and no longer accepts documents, so the document was not sent. Choose another printer, or add this printer again, then print again.";
 
-    /// <summary>The print server that shares the printer is offline.</summary>
+    /// <summary>Windows could not open the printer's queue, for a reason other than a stopped spooler.</summary>
     /// <param name="printerName">The printer, as Windows lists it.</param>
-    internal static string PrintServerOffline(string printerName) =>
-        $"The computer that shares the printer \"{printerName}\" (its print server) is offline, so the document was not sent. Check that the print server is switched on and reachable on the network, then print again.";
+    internal static string PrinterCannotBeOpened(string printerName) =>
+        $"Windows could not open the printer \"{printerName}\", so the document was not sent. Check that the Windows Print Spooler service is running and that the account running this program is allowed to use this printer, then print again.";
 
     /// <summary>The Windows Print Spooler service is not running.</summary>
     internal static string SpoolerNotRunning() =>

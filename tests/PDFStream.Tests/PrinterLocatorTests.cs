@@ -378,6 +378,22 @@ public sealed class PrinterLocatorTests
         Assert.Equal([PdfPrinter], probe.Asked);
     }
 
+    /// <summary>
+    /// An offline report does not stop settings from being created: network printers often report
+    /// offline through SNMP while working, and a printer that really is off simply queues the job.
+    /// </summary>
+    [Fact]
+    public void Offline_report_does_not_block_settings()
+    {
+        RequirePdfPrinter();
+        var probe = FakeStatusProbe.Reading(0x00000080u | 0x02000000u);
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = PdfPrinter }, SystemPrinterCatalog.Instance, probe, out PrinterSettings? settings, out _);
+
+        Assert.Equal(PrintStatus.Ok, status);
+        Assert.NotNull(settings);
+    }
+
     /// <summary>A status probe that fails does not stop settings from being created.</summary>
     [Fact]
     public void Unreadable_printer_status_does_not_block_settings()
