@@ -23,8 +23,10 @@ PrintResult fromStream = PdfPrinter.Print(stream, options);   // read from its c
 PrintResult fromBytes  = PdfPrinter.Print(pdfBytes, options);
 ```
 
-Each call takes an optional `CancellationToken` as its last argument. None of them throws for bad input or
-printer problems: every outcome, including an unexpected internal failure, comes back as a `PrintResult`.
+Each call takes an optional `CancellationToken` as its last argument. None of them throws a managed exception
+for bad input or printer problems: every such outcome, including an unexpected internal failure, comes back as a
+`PrintResult`. The one failure no .NET library can turn into a result is a crash inside the native PDF engine;
+see [Security and limits](#security-and-limits).
 
 - **File path**: a missing, unreadable or blank path returns `FileNotFound`.
 - **Stream**: it is read from its current position to its end, it does not need to support seeking, and it
@@ -195,6 +197,27 @@ static bool WaitUntilWritten(string path, TimeSpan timeout)
 Pass a `CancellationToken`. It is checked before the PDF is opened, after it is opened, and between pages,
 never in the middle of a page. A job stopped between pages ends normally, so the pages already sent print and
 `PagesPrinted` counts them exactly; the status is `Cancelled`.
+
+## Security and limits
+
+Read this before you print PDFs that come from outside your organisation (uploads, e-mail, customer portals).
+
+- **PDFium runs inside your process, without a sandbox.** It is the PDF engine of Chrome, but Chrome runs it in
+  a sandboxed process of its own; PDFStream calls it directly in yours. A malformed or deliberately hostile PDF
+  that triggers a memory fault inside PDFium ends the whole process at once: .NET cannot catch it, no
+  `PrintResult` is returned, and a Windows service simply stops (its recovery settings can restart it).
+- **Print untrusted PDFs in a separate worker process.** Run the print call in a small child process (one per
+  job, or a long-lived worker that you start again when it dies) and treat a worker that disappears as a failed
+  job. A bad file then costs one job instead of your service.
+- **One hung printer driver stalls every print in the process.** PDFium is not thread-safe, so PDFStream holds
+  one lock for the whole process around every PDFium call, including drawing a page onto the printer, which
+  runs inside the printer driver. A driver that hangs while a page is drawn keeps that lock, and every other
+  print in the same process waits behind it. A worker process per printer (or per job) contains this as well.
+- **Cancellation is checked between pages only.** The token is checked before the PDF is opened, after it is
+  opened and between pages. It cannot interrupt a page that is being drawn, a driver that hangs, or the opening
+  of a very large PDF.
+- **Security fixes in PDFium** reach PDFStream through updates of the `bblanchon.PDFium.Win32` package it
+  depends on. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
 ## Several threads at once
 

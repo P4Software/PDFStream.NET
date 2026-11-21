@@ -31,10 +31,17 @@ internal delegate PrintResult PrintJobRunner(
 /// </summary>
 /// <remarks>
 /// <para>
-/// None of the methods throws for bad input or printer problems (a missing file, a damaged or protected
-/// PDF, a wrong printer name, a paused printer, a bad page range, even an unexpected internal failure):
-/// each returns a <see cref="PrintResult"/> whose <see cref="PrintResult.Message"/> says in plain language
-/// what happened and what to do next.
+/// None of the methods throws managed exceptions for bad input or printer problems (a missing file, a damaged
+/// or protected PDF, a wrong printer name, a paused printer, a bad page range, even an unexpected internal
+/// failure): each returns a <see cref="PrintResult"/> whose <see cref="PrintResult.Message"/> says in plain
+/// language what happened and what to do next.
+/// </para>
+/// <para>
+/// Limits: PDFium runs inside the calling process without a sandbox, so a malformed or hostile PDF that causes a
+/// memory fault inside it ends the whole process, which .NET cannot catch; print PDFs you do not trust in a
+/// separate worker process. One process-wide lock is held while a page is drawn, so a printer driver that hangs
+/// stalls every print in the process, and cancellation is checked between pages only. The "Security and limits"
+/// section of the usage guide (docs/usage.md) explains these.
 /// </para>
 /// <para>
 /// The steps run in this order, and the first problem ends the call: the options are checked, the PDF is
@@ -68,8 +75,9 @@ public static class PdfPrinter
     /// pages ends normally, so the pages already sent do print and <see cref="PrintResult.PagesPrinted"/> counts them.
     /// </param>
     /// <returns>
-    /// The outcome, never an exception. <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only
-    /// when every requested page was rendered and sent to the printer.
+    /// The outcome. No managed exception is thrown for bad input or printer problems (see the class remarks for
+    /// the limits). <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only when every requested page
+    /// was rendered and sent to the printer.
     /// </returns>
     /// <remarks>
     /// Safe to call from several threads at once. PDFium work is serialised one engine call at a time across the
@@ -90,8 +98,9 @@ public static class PdfPrinter
     /// pages ends normally, so the pages already sent do print and <see cref="PrintResult.PagesPrinted"/> counts them.
     /// </param>
     /// <returns>
-    /// The outcome, never an exception. <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only
-    /// when every requested page was rendered and sent to the printer.
+    /// The outcome. No managed exception is thrown for bad input or printer problems (see the class remarks for
+    /// the limits). <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only when every requested page
+    /// was rendered and sent to the printer.
     /// </returns>
     /// <remarks>
     /// Safe to call from several threads at once. PDFium work is serialised one engine call at a time across the
@@ -108,8 +117,9 @@ public static class PdfPrinter
     /// pages ends normally, so the pages already sent do print and <see cref="PrintResult.PagesPrinted"/> counts them.
     /// </param>
     /// <returns>
-    /// The outcome, never an exception. <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only
-    /// when every requested page was rendered and sent to the printer.
+    /// The outcome. No managed exception is thrown for bad input or printer problems (see the class remarks for
+    /// the limits). <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only when every requested page
+    /// was rendered and sent to the printer.
     /// </returns>
     /// <remarks>
     /// Safe to call from several threads at once. PDFium work is serialised one engine call at a time across the

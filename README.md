@@ -39,7 +39,9 @@ own warehouse software, and we are sharing it so nobody else has to pay for it.
   paper source, and printing to a file.
 - **Password-protected PDFs.**
 - **Plain-language results**: every failure comes back as a status and a message that says what went wrong
-  and what to do next. Nothing is thrown at you for a bad file or a paused printer.
+  and what to do next. It never throws managed exceptions for bad input or printer problems, such as a bad file
+  or a paused printer. A crash inside the native PDF engine is the one thing no .NET library can turn into a
+  result; see [Security and limits](https://github.com/P4Software/PDFStream/blob/main/docs/usage.md#security-and-limits).
 - **No Adobe, nothing else to install**: the PDF engine (PDFium) comes with the package for x64, x86 and Arm64.
 - **No licence keys, watermarks, expiry dates, telemetry or network calls. Ever.**
 
@@ -115,6 +117,8 @@ were sent.
   printer, and other things a program without a screen needs.
 - [Troubleshooting](https://github.com/P4Software/PDFStream/blob/main/docs/troubleshooting.md), organised by the message you got.
 - [Contributing](https://github.com/P4Software/PDFStream/blob/main/CONTRIBUTING.md): building, testing and the release checklist.
+- [Security](https://github.com/P4Software/PDFStream/blob/main/SECURITY.md): how to report a vulnerability privately; read
+  [Security and limits](https://github.com/P4Software/PDFStream/blob/main/docs/usage.md#security-and-limits) before printing PDFs you do not trust.
 
 ## Try it without writing code
 

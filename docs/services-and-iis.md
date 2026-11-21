@@ -11,6 +11,10 @@ service or an ASP.NET application. PDFStream turns every failure into a result w
 exception, but until those checklist rows are run, test printing under your real account and printer before
 you rely on it.
 
+**Untrusted PDFs.** PDFium runs inside your service without a sandbox, so a malformed or hostile PDF that
+crashes it ends the whole service process, which .NET cannot catch; print PDFs you do not trust in a separate
+worker process (see [Security and limits](usage.md#security-and-limits)).
+
 ## The account must see the printer
 
 A program prints as the account it runs under, and it can only use the printers that account can see. That
