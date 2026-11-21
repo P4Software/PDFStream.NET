@@ -35,8 +35,13 @@ public sealed class RealPrintTests : IDisposable
     /// <summary>The longest a single print may take before the test fails instead of waiting on a hidden dialog.</summary>
     private static readonly TimeSpan PrintTimeout = TimeSpan.FromSeconds(60);
 
-    /// <summary>How long to wait, after the print call returned, for the output file to be complete and unlocked.</summary>
-    private static readonly TimeSpan OutputFileTimeout = TimeSpan.FromSeconds(30);
+    /// <summary>
+    /// How long to wait, after the print call returned, for the output file to be complete and unlocked. Usually it
+    /// takes a second or two, but on a busy machine the driver once needed more than 30 seconds (a 32-bit run that
+    /// took over two minutes in all), so the wait is generous; a printer that never finishes still fails the test,
+    /// with the state of its queue in the message.
+    /// </summary>
+    private static readonly TimeSpan OutputFileTimeout = TimeSpan.FromSeconds(120);
 
     /// <summary>
     /// The resolution the produced pages are rendered at when counting ink. 40 dpi keeps a page small and
@@ -319,9 +324,77 @@ public sealed class RealPrintTests : IDisposable
             Thread.Sleep(100);
         }
 
-        Assert.Fail($"The printer did not finish writing {path} within {OutputFileTimeout.TotalSeconds:0} seconds. Last problem: {lastProblem?.Message ?? "the file stayed empty or missing"}");
+        Assert.Fail($"The printer did not finish writing {path} within {OutputFileTimeout.TotalSeconds:0} seconds. Last problem: {lastProblem?.Message ?? "the file stayed empty or missing"}. Print queue '{PrinterName}': {DescribeQueue()}.");
         throw new InvalidOperationException("Unreachable: Assert.Fail always throws.");
     }
+
+    /// <summary>
+    /// The state of the printer's queue as Windows reports it (its status and attribute bits and the number of jobs
+    /// in it), for a failure message: a paused, stuck or busy queue explains an output file that never appears.
+    /// Never throws.
+    /// </summary>
+    private static string DescribeQueue()
+    {
+        try
+        {
+            PrinterStatusReadOutcome outcome = WinspoolPrinterStatusProbe.Instance.TryRead(PrinterName, out uint status, out uint attributes);
+            string jobs = CountJobs(PrinterName) is int count ? $"{count} job(s) in the queue" : "the number of jobs could not be read";
+            return outcome == PrinterStatusReadOutcome.Read
+                ? $"status 0x{status:X8}, attributes 0x{attributes:X8}, {jobs}"
+                : $"status not readable ({outcome}), {jobs}";
+        }
+        catch (Exception ex)
+        {
+            return $"not readable ({ex.Message})";
+        }
+    }
+
+    /// <summary>The number of jobs in a printer's queue (PRINTER_INFO_2 cJobs), or <see langword="null"/> when it cannot be read.</summary>
+    private static int? CountJobs(string printerName)
+    {
+        if (!OpenPrinter(printerName, out IntPtr printer, IntPtr.Zero))
+        {
+            return null;
+        }
+
+        try
+        {
+            // The first call only asks for the size of the variable-length block, and fails by design.
+            GetPrinter(printer, 2, IntPtr.Zero, 0, out int needed);
+            if (needed < Marshal.SizeOf<WinspoolPrinterStatusProbe.PrinterInfo2>())
+            {
+                return null;
+            }
+
+            IntPtr buffer = Marshal.AllocHGlobal(needed);
+            try
+            {
+                return GetPrinter(printer, 2, buffer, needed, out _)
+                    ? (int)Marshal.PtrToStructure<WinspoolPrinterStatusProbe.PrinterInfo2>(buffer).Jobs
+                    : null;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(buffer);
+            }
+        }
+        finally
+        {
+            ClosePrinter(printer);
+        }
+    }
+
+    /// <summary>OpenPrinterW, from the documented Win32 API.</summary>
+    [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    private static extern bool OpenPrinter(string printerName, out IntPtr printer, IntPtr defaults);
+
+    /// <summary>GetPrinterW, from the documented Win32 API.</summary>
+    [DllImport("winspool.drv", EntryPoint = "GetPrinterW", ExactSpelling = true, SetLastError = true)]
+    private static extern bool GetPrinter(IntPtr printer, int level, IntPtr buffer, int bufferSize, out int needed);
+
+    /// <summary>ClosePrinter, from the documented Win32 API.</summary>
+    [DllImport("winspool.drv", ExactSpelling = true, SetLastError = true)]
+    private static extern bool ClosePrinter(IntPtr printer);
 
     /// <summary>Counts pixels that are not (nearly) white. Near-white is allowed for because anti-aliasing and compression soften the paper colour.</summary>
     private static int CountNonWhite(Bitmap bitmap)
