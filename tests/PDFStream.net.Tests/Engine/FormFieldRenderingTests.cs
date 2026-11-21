@@ -891,6 +891,73 @@ public sealed class FormFieldRenderingTests
     }
 
     /// <summary>
+    /// KNOWN LIMITATION, pinned as it behaves today. This is a characterization test: it records documented
+    /// behaviour that a future fix is expected to change, so whoever fixes it must update this test AND the
+    /// limitation text in docs/usage.md, docs/troubleshooting.md, SECURITY.md, CHANGELOG.md and the design doc.
+    /// When four form pages share one indirect /Contents array and one indirect /Resources dictionary, the
+    /// copies share the cloned content array, and PDFium's flatten appends to that array in place. The pixel
+    /// comparison rejects the second page's copy (it shows the first page's field), but the fallback then flattens
+    /// the original page, whose content array is also shared, so the third page's original and copy differ as well
+    /// and it too goes in place and keeps the second page's drawing: later pages also print the fields of earlier
+    /// ones. The print still reports Ok and nothing throws. Nothing here depends on timing: the pages are drawn one
+    /// after the other and the ink is counted in fixed rectangles.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void Known_limitation_pages_sharing_one_content_array_also_print_the_fields_of_earlier_pages(RenderPath path)
+    {
+        const int Pages = 4;
+        byte[] pdf = SharedResourceFixtureFactory.Create(Pages, images: 1, withFields: true, SharedResources.Indirect, sharedContentArray: true);
+        float height = SharedResourceFixtureFactory.PageHeightPoints;
+        var prepared = new List<(int Page, PagePreparation How, CopyRejection Why)>();
+
+        using IPdfDocument document = Load(pdf);
+        ((PdfiumDocument)document).PagePrepared = (page, how, why) => prepared.Add((page, how, why));
+
+        // Drawn in page order, as a print job does. The fields are 80 x 50 points at four different places, so the
+        // ink in page q's field rectangle on page p says whether page q's field was drawn on page p.
+        for (int page = 0; page < Pages; page++)
+        {
+            using Bitmap picture = Render(document, path, page);
+            AssertInked(picture, SharedResourceFixtureFactory.FieldOn(page).ToInnerPixels(Dpi, height), $"page {page + 1}'s own field");
+            for (int other = 0; other < Pages; other++)
+            {
+                if (other == page)
+                {
+                    continue;
+                }
+
+                Rectangle area = SharedResourceFixtureFactory.FieldOn(other).ToInnerPixels(Dpi, height);
+                int dark = Pixels.CountDarkIn(picture, area);
+                _output.WriteLine($"Page {page + 1}: {dark} dark pixels where page {other + 1}'s field lies ({area.Width * area.Height} in the rectangle)");
+
+                // Today: pages 1 and 2 are clean; page 3 also shows page 2's field; page 4 also shows pages 2 and 3.
+                bool leaks = page >= 2 && other >= 1 && other < page;
+                if (leaks)
+                {
+                    Assert.True(dark >= area.Width * area.Height * FullyInked, $"Documented limitation: page {page + 1} should also show page {other + 1}'s field, but only {dark} pixels are dark. If this was fixed, update this test and the docs.");
+                }
+                else
+                {
+                    Assert.True(dark == 0, $"Page {page + 1} has {dark} dark pixels where page {other + 1}'s field lies, which is not the documented behaviour.");
+                }
+            }
+        }
+
+        // The page itself was never given up: every page was flattened, none was drawn without its fields.
+        Assert.Equal(Pages, prepared.Count);
+        Assert.DoesNotContain(prepared, entry => entry.How == PagePreparation.DrawnAsItIs);
+
+        // And a whole print job over the same kind of PDF still ends with status Ok.
+        using IPdfDocument jobDocument = Load(pdf);
+        using var controller = new FakePrintController();
+        PrintResult result = PrintJob.Run(jobDocument, [0, 1, 2, 3], TestPrinters.Settings(), "Shared content array", ScaleMode.FitToPage, CancellationToken.None, controller);
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(Pages, result.PagesPrinted);
+    }
+
+    /// <summary>
     /// A print job looks for form fields only among the pages it prints, and copies those pages (each once, in the
     /// order of the job) in one go.
     /// </summary>
