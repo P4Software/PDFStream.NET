@@ -36,8 +36,21 @@
     <Product>PDFStream.net</Product>
     <Copyright>Copyright (c) 2026 P4 Software</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <!-- The release sets the final version; until then builds are marked as previews. -->
+    <!--
+      The version of the package and of the assembly. The first version published on nuget.org is the release
+      candidate 1.0.0-rc.1 (the owner's decision); the stable 1.0.0 follows once the remaining manual release
+      checklist rows are verified. A NuGet version is permanent, so this must be exact. Setting it here, in the
+      file every build reads, makes a local `dotnet pack` and the CI pack give the same
+      PDFStream.net.1.0.0-rc.1.nupkg with no command-line property. The SDK derives from it:
+        PackageVersion / nuspec version  1.0.0-rc.1
+        AssemblyVersion and FileVersion  1.0.0.0 (the prerelease suffix is not part of them)
+        InformationalVersion             1.0.0-rc.1, plus "+<commit hash>" when the build is inside a git
+                                         repository (the SDK adds that on its own; NuGet ignores the
+                                         build-metadata part, so the package version stays 1.0.0-rc.1).
+      To release the stable version, delete the VersionSuffix line (and update the version in
+      .github/workflows/ci.yml).
+    -->
     <VersionPrefix>1.0.0</VersionPrefix>
-    <VersionSuffix>preview</VersionSuffix>
+    <VersionSuffix>rc.1</VersionSuffix>
   </PropertyGroup>
 </Project>

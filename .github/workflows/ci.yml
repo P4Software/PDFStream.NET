@@ -145,10 +145,15 @@ jobs:
       - name: Check the package contents
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
+          # The version being released: VersionPrefix plus VersionSuffix in Directory.Build.props. A version published
+          # on nuget.org is permanent, so the check pins it exactly. Change it together with that file when a new
+          # version is released.
+          $expectedVersion = '1.0.0-rc.1'
           # The package id, the assembly and the namespace are all PDFStream.net, so the file is
           # PDFStream.net.<version>.nupkg and its manifest PDFStream.net.nuspec. Exactly one must exist.
           $packages = @(Get-ChildItem artifacts/package -Filter 'PDFStream.net.*.nupkg' | Where-Object { $_.Name -notlike '*.snupkg' })
-          if ($packages.Count -ne 1) { throw "Expected one PDFStream.net.<version>.nupkg, found $($packages.Count): $($packages.Name -join ', ')" }
+          if ($packages.Count -ne 1) { throw "Expected one PDFStream.net.$expectedVersion.nupkg, found $($packages.Count): $($packages.Name -join ', ')" }
+          if ($packages[0].Name -cne "PDFStream.net.$expectedVersion.nupkg") { throw "The package file is '$($packages[0].Name)', not PDFStream.net.$expectedVersion.nupkg" }
           $package = $packages[0]
           $zip = [IO.Compression.ZipFile]::OpenRead($package.FullName)
           try {
@@ -166,12 +171,16 @@ jobs:
           $metadata = $nuspec.package.metadata
           if ($metadata.id -cne 'PDFStream.net') { $problems += "the package id is '$($metadata.id)', not PDFStream.net" }
           if ($metadata.title -cne 'PDFStream.net') { $problems += "the package title is '$($metadata.title)', not PDFStream.net" }
+          if ($metadata.version -cne $expectedVersion) { $problems += "the package version is '$($metadata.version)', not $expectedVersion" }
           if ($metadata.license.'#text' -ne 'MIT') { $problems += 'the licence expression is not MIT' }
           if ($metadata.readme -ne 'README.md') { $problems += 'the package readme is not README.md' }
           if ($metadata.authors -ne 'P4 Software') { $problems += 'the authors are not P4 Software' }
           if ($metadata.repository.url -ne 'https://github.com/P4Software/PDFStream.net') { $problems += 'the repository URL is missing or wrong' }
           foreach ($group in @($metadata.dependencies.group)) {
-            if (@($group.dependency | ForEach-Object { $_.id }) -notcontains 'bblanchon.PDFium.Win32') { $problems += "$($group.targetFramework) does not depend on bblanchon.PDFium.Win32 (pdfium.dll)" }
+            $pdfium = @($group.dependency | Where-Object { $_.id -ceq 'bblanchon.PDFium.Win32' })
+            if ($pdfium.Count -ne 1) { $problems += "$($group.targetFramework) does not depend on bblanchon.PDFium.Win32 (pdfium.dll)" }
+            # The exact PDFium build that was tested (the nuspec writes it as "160.0.8165", which NuGet reads as "160.0.8165 or newer").
+            elseif ($pdfium[0].version -cne '160.0.8165') { $problems += "$($group.targetFramework) depends on bblanchon.PDFium.Win32 $($pdfium[0].version), not 160.0.8165" }
           }
           $unexpected = @($entries | Where-Object { $_ -match '\.(snk|pfx|p12|pem|key|cer|ps1|cmd|bat|json|config)$' })
           if ($unexpected.Count -gt 0) { $problems += "unexpected files: $($unexpected -join ', ')" }
