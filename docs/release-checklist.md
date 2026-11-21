@@ -56,6 +56,7 @@ Print a multi-page PDF with the sample or your own program built for each archit
 | --- | --- | --- | --- | --- |
 | Run from a Windows service under a normal service account (not LocalSystem, not an administrator), printing to a printer that account can use | | | Not run | |
 | Run from a Task Scheduler task ("Run whether user is logged on or not") | | | Not run | |
+| Run from an IIS application pool: an ASP.NET Core app printing to a printer visible to the app pool identity | | | Not run | |
 
 ### 2.3 Printers and paper
 

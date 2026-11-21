@@ -139,8 +139,8 @@ Run on 2026-11-20 on one Windows 11 x64 machine:
   a two-page PDF to *Microsoft Print to PDF*.
 
 Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream/blob/main/docs/release-checklist.md)): running on an Arm64
-PC, physical printers (duplex, trays, network printers), and printing from a Windows service, a scheduled
-task or IIS.
+PC, physical printers (duplex, network printers), and printing from a Windows service, a scheduled task
+or IIS.
 
 ## Roadmap
 
