@@ -70,6 +70,27 @@ Autoconf exception). Those are build scripts; they are not compiled into `pdfium
 
 These are ordinary NuGet dependencies, restored from nuget.org; they are listed here for completeness.
 
+## Redistributing pdfium.dll
+
+Every application built with PDFStream ships `pdfium.dll` next to its program (the `bblanchon.PDFium.Win32`
+dependency puts it there), and so redistributes PDFium and the libraries compiled into it. Their licences
+(BSD-3-Clause, Apache-2.0 and the others listed above) require that whoever receives the binary also receives
+their notices. **Any application that redistributes pdfium.dll must carry the PDFium section of these notices**:
+the "PDF engine: PDFium" section above and the licence texts below from "pdfium-binaries packaging" to "zlib".
+Shipping this whole file with your program is the simplest way to do that.
+
+## The test-print sample exe
+
+The `PDFStream.TestPrint-win-x64` artifact that CI publishes is one self-contained exe. Besides PDFStream (MIT,
+see [LICENSE](LICENSE)) and `pdfium.dll` (the PDFium section above applies to it), it carries:
+
+| Component | Licence | Notes |
+|---|---|---|
+| The .NET runtime (package `Microsoft.NETCore.App.Runtime.win-x64`) | MIT | Copyright (c) .NET Foundation and Contributors; the licence text is below. The runtime's own third-party notices apply to this copy too: they are the `THIRD-PARTY-NOTICES.TXT` file in that package, also published at [github.com/dotnet/runtime](https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT). |
+| System.Drawing.Common and Microsoft.Win32.SystemEvents | MIT | As listed above. |
+
+The sample's build and publish output put `LICENSE` and this file next to the exe.
+
 ## Development only (not distributed)
 
 The test project uses xUnit.net v3 (Apache-2.0), Microsoft.NET.Test.Sdk (MIT), Microsoft Testing
@@ -2830,9 +2851,11 @@ Source: `licenses/zlib.txt` in the `chromium/8165` release archive.
 */
 ```
 
-### System.Drawing.Common and Microsoft.Win32.SystemEvents (MIT)
+### .NET runtime, System.Drawing.Common and Microsoft.Win32.SystemEvents (MIT)
 
-Source: `LICENSE.TXT` in the System.Drawing.Common package.
+Source: `LICENSE.TXT` in the System.Drawing.Common package; the `LICENSE.TXT` in the
+`Microsoft.NETCore.App.Runtime.win-x64` package (the .NET runtime in the self-contained test-print sample) is the
+same text, byte for byte.
 
 ```text
 The MIT License (MIT)

@@ -50,7 +50,8 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
 - Documentation: `docs/usage.md`, `docs/services-and-iis.md`, `docs/troubleshooting.md` and `CONTRIBUTING.md`.
 - CI (`.github/workflows/ci.yml`): on every push and pull request, build and test both frameworks on
   `windows-latest`, report whether *Microsoft Print to PDF* exists and how many tests were skipped, pack and
-  check the NuGet package, and publish the test-print sample as one self-contained exe. Artifacts only; it
+  check the NuGet package, and publish the test-print sample as one self-contained exe, with `LICENSE` and
+  `THIRD-PARTY-NOTICES.md` next to it (the exe carries the .NET runtime and `pdfium.dll`). Artifacts only; it
   publishes nothing and uses no secrets.
 
 ### Changed

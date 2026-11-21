@@ -128,9 +128,13 @@ name and a PDF, and run it again: by default it is a **dry run** that only check
 it would send. Set `ReallyPrint` to `true` to print. Paths copied with Explorer's "Copy as path" work even
 though they carry quote marks. It is also a short example of using the public API.
 
-Every CI build keeps a ready-to-run copy (the `PDFStream.TestPrint-win-x64` artifact): a single exe that
-includes .NET, so it runs on a machine with nothing installed. Built from source without those publish
-options, it needs the .NET 10 runtime.
+Every CI build keeps a ready-to-run copy (the `PDFStream.TestPrint-win-x64` artifact): a single exe for 64-bit
+(x64) Windows only, which includes .NET and `pdfium.dll`, so .NET does not have to be installed. It is not signed,
+so Windows SmartScreen may warn before it runs, and on its first run it extracts `pdfium.dll` to a folder under
+your temporary folder. `LICENSE` and `THIRD-PARTY-NOTICES.md` come next to the exe: it carries the .NET runtime
+(MIT; its own third-party notices apply too) and PDFium, and any program that redistributes `pdfium.dll` must
+carry the PDFium section of those notices. Built from source without those publish options, the sample needs
+the .NET 10 runtime.
 
 ## What has been verified
 

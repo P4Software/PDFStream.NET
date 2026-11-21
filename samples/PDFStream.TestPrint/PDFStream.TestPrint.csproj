@@ -16,6 +16,18 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <ItemGroup Label="Licence notices next to the exe">
+    <!--
+      The published sample is one self-contained exe that carries the .NET runtime and pdfium.dll, so the
+      licence texts must travel with it: LICENSE (PDFStream, MIT) and THIRD-PARTY-NOTICES.md (PDFium and the
+      libraries compiled into it, and the .NET runtime). Both are linked from the repository root and copied to
+      the build and the publish output. ExcludeFromSingleFile keeps them as files beside the exe, where a person
+      can open them, instead of hidden inside the single-file bundle.
+    -->
+    <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
   <ItemGroup>
     <!--
       The sample uses the library exactly as a customer would, through its public API only. It does
