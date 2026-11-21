@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing.Printing;
 using PDFStream.Printing;
 using PDFStream.Tests.Printing;
@@ -23,6 +24,12 @@ public sealed class PrinterLocatorTests
 
         public IReadOnlyList<string> GetInstalledPrinterNames() =>
             Fails ? throw new InvalidOperationException("The Print Spooler service is not running.") : names;
+    }
+
+    /// <summary>A printer list that fails with the given exception, as the print system does when it cannot be reached.</summary>
+    private sealed class ThrowingCatalog(Exception failure) : IPrinterCatalog
+    {
+        public IReadOnlyList<string> GetInstalledPrinterNames() => throw failure;
     }
 
     /// <summary>Skips the calling test, visibly, when the Microsoft Print to PDF printer is missing.</summary>
@@ -120,6 +127,129 @@ public sealed class PrinterLocatorTests
         Assert.Equal(PrintStatus.PrinterUnavailable, status);
         Assert.Null(settings);
         Assert.Equal(Messages.PrinterUnavailable(), message);
+    }
+
+    /// <summary>
+    /// Reading the printer list fails with RPC_S_SERVER_UNAVAILABLE (1722), which is how Windows answers when the
+    /// Print Spooler service is not running: the result names the stopped spooler. The error code alone is
+    /// enough; the separate spooler check says "running" here.
+    /// </summary>
+    [Fact]
+    public void Printer_list_failing_with_rpc_server_unavailable_names_the_stopped_spooler()
+    {
+        var catalog = new ThrowingCatalog(new Win32Exception(1722));
+        var probe = new FakeStatusProbe(PrinterStatusReadOutcome.Read) { SpoolerStopped = false };
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = "Any" }, catalog, probe, out PrinterSettings? settings, out string message);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, status);
+        Assert.Null(settings);
+        Assert.Equal(Messages.SpoolerNotRunning(), message);
+    }
+
+    /// <summary>The same error code is recognised when it arrives wrapped in another exception.</summary>
+    [Fact]
+    public void Wrapped_rpc_server_unavailable_names_the_stopped_spooler()
+    {
+        var catalog = new ThrowingCatalog(new InvalidOperationException("Could not list printers.", new Win32Exception(1722)));
+        var probe = new FakeStatusProbe(PrinterStatusReadOutcome.Read) { SpoolerStopped = false };
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = "Any" }, catalog, probe, out _, out string message);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, status);
+        Assert.Equal(Messages.SpoolerNotRunning(), message);
+    }
+
+    /// <summary>
+    /// Any other failure to read the printer list, while the spooler check reports the spooler stopped, also
+    /// names the stopped spooler.
+    /// </summary>
+    [Fact]
+    public void Printer_list_failing_while_the_spooler_is_stopped_names_the_stopped_spooler()
+    {
+        var catalog = new ThrowingCatalog(new InvalidOperationException("Something went wrong."));
+        var probe = new FakeStatusProbe(PrinterStatusReadOutcome.Read) { SpoolerStopped = true };
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = "Any" }, catalog, probe, out _, out string message);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, status);
+        Assert.Equal(Messages.SpoolerNotRunning(), message);
+    }
+
+    /// <summary>
+    /// Any other failure to read the printer list with the spooler running keeps the general printer message,
+    /// which also tells the reader to check the spooler; a spooler check that throws counts as "running".
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Printer_list_failing_with_the_spooler_running_keeps_the_general_message(bool spoolerCheckThrows)
+    {
+        var catalog = new ThrowingCatalog(new InvalidOperationException("Something went wrong."));
+        var probe = new FakeStatusProbe(PrinterStatusReadOutcome.Read)
+        {
+            SpoolerStopped = false,
+            SpoolerCheckThrows = spoolerCheckThrows ? new InvalidOperationException("Cannot tell.") : null,
+        };
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = "Any" }, catalog, probe, out _, out string message);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, status);
+        Assert.Equal(Messages.PrinterUnavailable(), message);
+    }
+
+    /// <summary>
+    /// A stopped spooler can also make the printer list come back empty, which on its own reads as "no such
+    /// printer". When the named printer is not found and the spooler check reports it stopped, the result names
+    /// the stopped spooler instead.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Missing_printer_while_the_spooler_is_stopped_names_the_stopped_spooler(bool listHasOtherPrinters)
+    {
+        var probe = new FakeStatusProbe(PrinterStatusReadOutcome.Read) { SpoolerStopped = true };
+        var catalog = listHasOtherPrinters ? new FakeCatalog("Office Laser") : new FakeCatalog();
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = "Warehouse Printer 1" }, catalog, probe, out PrinterSettings? settings, out string message);
+
+        Assert.Equal(PrintStatus.PrinterUnavailable, status);
+        Assert.Null(settings);
+        Assert.Equal(Messages.SpoolerNotRunning(), message);
+    }
+
+    /// <summary>
+    /// The real spooler check says "running" on a machine whose printer list can be read (this one). Stopping the
+    /// real spooler to see the other answer is left to the manual release checklist.
+    /// </summary>
+    [Fact]
+    public void Real_spooler_check_says_running_while_printers_can_be_listed()
+    {
+        bool listed;
+        try
+        {
+            listed = SystemPrinterCatalog.Instance.GetInstalledPrinterNames().Count > 0;
+        }
+        catch (Exception)
+        {
+            listed = false;
+        }
+
+        Assert.SkipUnless(listed, "No printer list could be read on this machine, so the spooler cannot be shown to be running.");
+        Assert.False(WinspoolPrinterStatusProbe.Instance.IsSpoolerStopped());
+    }
+
+    /// <summary>A printer that is genuinely missing, with the spooler running, stays PrinterNotFound.</summary>
+    [Fact]
+    public void Missing_printer_while_the_spooler_runs_is_PrinterNotFound()
+    {
+        var probe = new FakeStatusProbe(PrinterStatusReadOutcome.Read) { SpoolerStopped = false };
+
+        PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = "Warehouse Printer 1" }, new FakeCatalog("Office Laser"), probe, out PrinterSettings? settings, out string message);
+
+        Assert.Equal(PrintStatus.PrinterNotFound, status);
+        Assert.Null(settings);
+        Assert.Equal(Messages.PrinterNotFound(), message);
     }
 
     /// <summary>

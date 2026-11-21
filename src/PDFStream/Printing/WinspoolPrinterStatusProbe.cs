@@ -4,7 +4,7 @@ namespace PDFStream.Printing;
 
 /// <summary>
 /// The real printer status, read from the Windows print spooler with OpenPrinter and GetPrinter
-/// (PRINTER_INFO_2). It never throws for a printer problem: a queue that cannot be opened is reported
+/// (PRINTER_INFO_2), and the spooler check (see <see cref="IsSpoolerStopped"/>). It never throws for a printer problem: a queue that cannot be opened is reported
 /// as <see cref="PrinterStatusReadOutcome.SpoolerNotRunning"/> or
 /// <see cref="PrinterStatusReadOutcome.CannotOpen"/>, and a status that cannot be read from an open
 /// queue as <see cref="PrinterStatusReadOutcome.Unreadable"/>.
@@ -19,10 +19,11 @@ internal sealed class WinspoolPrinterStatusProbe : IPrinterStatusProbe
     internal static readonly WinspoolPrinterStatusProbe Instance = new();
 
     /// <summary>
-    /// RPC_S_SERVER_UNAVAILABLE: how OpenPrinter fails when the Print Spooler service is not running,
-    /// because the spooler is the RPC server it talks to.
+    /// RPC_S_SERVER_UNAVAILABLE: how OpenPrinter (and the printer list behind
+    /// <c>PrinterSettings.InstalledPrinters</c>) fails when the Print Spooler service is not running, because
+    /// the spooler is the RPC server they talk to.
     /// </summary>
-    private const int RpcServerUnavailable = 1722;
+    internal const int RpcServerUnavailable = 1722;
 
     /// <summary>GetPrinter information level for PRINTER_INFO_2, the level that carries Status and Attributes.</summary>
     private const int InfoLevel2 = 2;
@@ -78,8 +79,26 @@ internal sealed class WinspoolPrinterStatusProbe : IPrinterStatusProbe
         }
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Opens the local print server itself (OpenPrinter with no printer name), which needs no printer and never
+    /// goes over the network, and closes it again at once. Only RPC_S_SERVER_UNAVAILABLE counts as "stopped":
+    /// any other refusal (for example a permission problem) says nothing certain about the service.
+    /// </remarks>
+    public bool IsSpoolerStopped()
+    {
+        if (OpenPrinter(null, out IntPtr server, IntPtr.Zero))
+        {
+            ClosePrinter(server);
+            return false;
+        }
+
+        return Marshal.GetLastPInvokeError() == RpcServerUnavailable;
+    }
+
+    /// <summary>OpenPrinterW. A <see langword="null"/> name opens the local print server instead of a printer.</summary>
     [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
-    private static extern bool OpenPrinter(string printerName, out IntPtr printer, IntPtr defaults);
+    private static extern bool OpenPrinter(string? printerName, out IntPtr printer, IntPtr defaults);
 
     [DllImport("winspool.drv", EntryPoint = "GetPrinterW", ExactSpelling = true, SetLastError = true)]
     private static extern bool GetPrinter(IntPtr printer, int level, IntPtr buffer, int bufferSize, out int needed);

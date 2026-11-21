@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Drawing.Printing;
 
 namespace PDFStream.Printing;
@@ -48,9 +49,10 @@ internal static class PrinterLocator
     /// <see cref="PrintStatus.Ok"/>, <see cref="PrintStatus.InvalidOptions"/> (empty name, fewer than one
     /// copy, unknown paper source, unusable output file), <see cref="PrintStatus.PrinterNotFound"/> or
     /// <see cref="PrintStatus.PrinterUnavailable"/> (the printer cannot be opened, cannot do what was
-    /// asked, or its queue is paused, set to "Use printer offline", not available or being deleted; the
-    /// message names the cause). The queue state is read with the real Windows print spooler. An
-    /// "offline" report alone does not refuse the printer (see <see cref="PrinterStatusCheck"/>).
+    /// asked, or its queue is paused, set to "Use printer offline", not available or being deleted, or the
+    /// Print Spooler service is stopped; the message names the cause). The queue state is read with the real
+    /// Windows print spooler. An "offline" report alone does not refuse the printer (see
+    /// <see cref="PrinterStatusCheck"/>).
     /// </returns>
     internal static PrintStatus TryCreateSettings(
         PrintOptions options,
@@ -101,15 +103,27 @@ internal static class PrinterLocator
         {
             installedName = FindInstalledName(catalog, options.PrinterName);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // The print system itself is unreachable, typically a stopped Print Spooler service.
-            message = Messages.PrinterUnavailable();
+            // The print system itself cannot be read. With the Print Spooler service stopped, Windows answers
+            // RPC_S_SERVER_UNAVAILABLE; that, or a spooler check that finds the service stopped, gets the
+            // message that says so. Anything else keeps the general text, which also points at the spooler.
+            message = IsRpcServerUnavailable(ex) || IsSpoolerStopped(statusProbe)
+                ? Messages.SpoolerNotRunning()
+                : Messages.PrinterUnavailable();
             return PrintStatus.PrinterUnavailable;
         }
 
         if (installedName is null)
         {
+            // A stopped spooler can also hand back an empty list instead of failing, which would read as "not
+            // installed". Only a printer missing while the spooler answers is really not found.
+            if (IsSpoolerStopped(statusProbe))
+            {
+                message = Messages.SpoolerNotRunning();
+                return PrintStatus.PrinterUnavailable;
+            }
+
             message = Messages.PrinterNotFound();
             return PrintStatus.PrinterNotFound;
         }
@@ -189,6 +203,39 @@ internal static class PrinterLocator
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Whether an exception (or one it wraps) carries RPC_S_SERVER_UNAVAILABLE, Windows's answer while the Print
+    /// Spooler service is not running: as a Win32 error code, or as the HRESULT made from it.
+    /// </summary>
+    private static bool IsRpcServerUnavailable(Exception exception)
+    {
+        const int RpcServerUnavailableHResult = unchecked((int)0x800706BA);
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is Win32Exception { NativeErrorCode: WinspoolPrinterStatusProbe.RpcServerUnavailable }
+                || current.HResult == RpcServerUnavailableHResult)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Asks the probe whether the spooler is stopped; a probe that fails counts as "not stopped".</summary>
+    private static bool IsSpoolerStopped(IPrinterStatusProbe probe)
+    {
+        try
+        {
+            return probe.IsSpoolerStopped();
+        }
+        catch (Exception)
+        {
+            // An unclear answer never turns "not found" into a spooler message.
+            return false;
+        }
     }
 
     /// <summary>Maps the library's duplex choice to the one Windows Forms understands.</summary>

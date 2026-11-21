@@ -26,6 +26,15 @@ internal sealed class FakeStatusProbe : IPrinterStatusProbe
     /// <summary>The printer names asked about, in order.</summary>
     public List<string> Asked { get; } = [];
 
+    /// <summary>What the spooler check reports: <see langword="true"/> stands for a stopped Print Spooler.</summary>
+    public bool SpoolerStopped { get; init; }
+
+    /// <summary>When set, the spooler check throws this instead of answering.</summary>
+    public Exception? SpoolerCheckThrows { get; init; }
+
+    /// <summary>How many times the spooler check was made.</summary>
+    public int SpoolerChecks { get; private set; }
+
     /// <summary>A probe that reads these status and attribute bits.</summary>
     public static FakeStatusProbe Reading(uint status, uint attributes = 0) => new(PrinterStatusReadOutcome.Read, status, attributes);
 
@@ -41,5 +50,12 @@ internal sealed class FakeStatusProbe : IPrinterStatusProbe
         status = _status;
         attributes = _attributes;
         return _outcome;
+    }
+
+    /// <summary>Reports <see cref="SpoolerStopped"/>, or throws <see cref="SpoolerCheckThrows"/>.</summary>
+    public bool IsSpoolerStopped()
+    {
+        SpoolerChecks++;
+        return SpoolerCheckThrows is null ? SpoolerStopped : throw SpoolerCheckThrows;
     }
 }

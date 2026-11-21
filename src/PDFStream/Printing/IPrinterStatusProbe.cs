@@ -35,4 +35,15 @@ internal interface IPrinterStatusProbe
     /// <param name="attributes">The PRINTER_ATTRIBUTE_* bits when the outcome is <see cref="PrinterStatusReadOutcome.Read"/>; otherwise 0.</param>
     /// <returns>Whether the values were read and, if not, why. May also throw; callers treat that as unreadable.</returns>
     PrinterStatusReadOutcome TryRead(string printerName, out uint status, out uint attributes);
+
+    /// <summary>
+    /// Says whether the local Windows Print Spooler service is clearly not running. Used when the printer
+    /// list cannot be read, or does not hold the requested printer, to tell a stopped spooler apart from a
+    /// printer that is simply not installed.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> only when the spooler definitely did not answer; <see langword="false"/> when it
+    /// answered or when the answer is unclear. May also throw; callers treat that as <see langword="false"/>.
+    /// </returns>
+    bool IsSpoolerStopped();
 }

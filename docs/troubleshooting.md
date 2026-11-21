@@ -101,7 +101,8 @@ Status `PrinterUnavailable`. The general printer message. It covers:
 - Windows lists the printer but cannot open it, or rejects its settings.
 - The print system failed while the job was running (for example the driver failed to start or end the job).
 - The printer reports no printable area at all.
-- The list of printers could not be read, which usually means the Print Spooler service has stopped.
+- The list of printers could not be read for a reason other than a stopped Print Spooler (a stopped spooler
+  that Windows reports as such gets its own message, below).
 
 ### "The printer "&lt;printer name&gt;" is paused in Windows, ..."
 
@@ -141,9 +142,17 @@ permissions), or the print server cannot be reached.
 > The Windows Print Spooler service is not running, so no printer can be used and the document was not sent. Start the Print Spooler service (in Services, or ask the person who looks after this computer), then print again.
 
 Status `PrinterUnavailable`. Start the Print Spooler service (`services.msc`, "Print Spooler", Start; set it
-to start automatically). Depending on the moment the spooler stopped, you may get the general printer message
-above, or `PrinterNotFound` when Windows returns an empty printer list, instead of this one. (A machine with a
-stopped spooler is on the [release checklist](release-checklist.md) and has not been tried yet.)
+to start automatically).
+
+What PDFStream detects: Windows answers "RPC server unavailable" (error 1722) while the spooler service is
+stopped, and PDFStream gives this message when it gets that answer while reading the list of printers, while
+opening the printer's queue, or when the printer you named is not in the list and the local spooler, asked
+directly, gives that answer. What it does not do: it does not ask the Windows service manager about the
+service, so a spooler that fails in some other way (still starting, crashing, refusing this account) gets the
+general printer message above, which also says to check the spooler.
+
+Not verified yet: this mapping is tested only with simulated answers. A machine with the spooler really stopped
+is on the [release checklist](release-checklist.md) and has not been tried.
 
 ## The job stopped
 
