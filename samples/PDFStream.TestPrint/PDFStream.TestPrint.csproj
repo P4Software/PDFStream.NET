@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Language, nullable, XML documentation and licence settings come from Directory.Build.props. -->
+
+  <PropertyGroup>
+    <!--
+      The sample targets net10.0-windows only (unlike the library, which also targets net8.0-windows):
+      it is a demonstration program for the first real user, not something other projects build on.
+      Setting the property here replaces the two-target list from Directory.Build.props.
+    -->
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PDFStream.TestPrint</RootNamespace>
+    <AssemblyName>PDFStream.TestPrint</AssemblyName>
+    <Description>Double-click test-print program for PDFStream. Reads settings.json next to the program, checks everything and, only when asked to, prints a PDF.</Description>
+    <!-- A demonstration program, never published as a NuGet package. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The sample uses the library exactly as a customer would, through its public API only. It does
+      not get InternalsVisibleTo access, so it also works as documentation by example.
+    -->
+    <ProjectReference Include="..\..\src\PDFStream\PDFStream.csproj" />
+  </ItemGroup>
+</Project>

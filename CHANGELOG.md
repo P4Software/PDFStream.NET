@@ -20,6 +20,11 @@ All notable changes to PDFStream are recorded here. The format follows
 - PDFium 160.0.8165 native binaries for win-x64, win-x86 and win-arm64 (package
   `bblanchon.PDFium.Win32`), with their licences in `THIRD-PARTY-NOTICES.md`.
 
+- `samples/PDFStream.TestPrint`: a double-click test-print program (net10.0-windows). It reads a
+  commented `settings.json` next to the exe (created on the first run), lists the installed printers,
+  and does a dry run by default; `ReallyPrint` set to `true` really prints. It always waits for a key
+  press so the result can be read, and uses only the public API.
+
 ### Verified
 
 Test hosts actually run for this change (2026-11-20, one Windows 11 x64 machine, .NET SDK 11.0.100):

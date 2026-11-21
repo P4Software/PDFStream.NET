@@ -58,4 +58,16 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PDFStream\PDFStream.csproj" />
   </ItemGroup>
+
+  <!--
+    The test-print sample targets net10.0-windows only, so a net8.0-windows test build cannot
+    reference it. Its tests (Sample folder) are therefore compiled and run for net10.0-windows only;
+    they test plain logic that does not depend on the target framework.
+  -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+    <ProjectReference Include="..\..\samples\PDFStream.TestPrint\PDFStream.TestPrint.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0-windows'">
+    <Compile Remove="Sample\**" />
+  </ItemGroup>
 </Project>
