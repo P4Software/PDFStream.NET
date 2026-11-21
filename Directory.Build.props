@@ -33,7 +33,7 @@
   <PropertyGroup Label="Identity and licence">
     <Authors>P4 Software</Authors>
     <Company>P4 Software</Company>
-    <Product>PDFStream</Product>
+    <Product>PDFStream.net</Product>
     <Copyright>Copyright (c) 2026 P4 Software</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <!-- The release sets the final version; until then builds are marked as previews. -->
