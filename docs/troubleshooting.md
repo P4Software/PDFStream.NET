@@ -241,6 +241,12 @@ PDFStream prints filled-in form fields (see [usage.md](usage.md#form-fields)). I
 - **Every field of one page is blank, but the rest of that page prints.** PDFStream could not prepare that
   page's fields (the PDF engine refused to copy the page or to draw its fields into the copy), so it printed the
   page without them instead of failing the print. If you can share the PDF, open an issue with it.
+- **The fields print, but images or text are missing from that page, and the PDF uses layers.** This is the one
+  known limitation of form printing (see [usage.md](usage.md#form-fields)): a page with fields and with layers
+  the PDF switches off has its fields drawn into the page itself, and if the page takes its fonts or images from
+  the PDF's page tree, those are then hidden. Print or save the filled form to a plain PDF first (for example
+  with "Microsoft Print to PDF" from a viewer, or with the "flatten" option of the tool that filled it) and
+  print that file.
 
 ### A PDF marked "printing not allowed" printed anyway
 

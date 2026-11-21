@@ -26,9 +26,12 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   print paths. PDFium never draws form fields when it draws a page, so before a page with fields is first
   drawn PDFStream copies that page inside its own in-memory copy of the PDF, with everything the page inherits
   from the PDF's page tree (its fonts, images and page boxes included), flattens the fields into the copy as
-  they print, and prints the copy in place of the page. Everything else on the page prints as before; fields
-  not marked for printing stay off the paper, and pages without fields are untouched. XFA-only forms are not
-  supported (the bundled PDFium is built without XFA).
+  they print, and prints the copy in place of the page. The copy is used only if it looks exactly like the
+  page; a page with layers the PDF switches off has its fields drawn into the page itself instead, which keeps
+  those layers off the paper. Everything else on the page prints as before; fields not marked for printing stay
+  off the paper, and pages without fields are untouched. Known limitation: a page with fields, switched-off
+  layers and fonts or images taken from the PDF's page tree can print without those fonts or images. XFA-only
+  forms are not supported (the bundled PDFium is built without XFA).
 - Printing straight onto the printer's page as drawing commands, with a picture fallback (at most 300 dpi)
   for drivers that refuse that; each page is scaled and turned on its own. Copies are made by the driver when
   it can, otherwise by sending the document again in the same job.
@@ -73,12 +76,12 @@ from the last run, on 2026-11-21):
 - win-arm64: **not run**. No arm64 machine was available, and an x64 machine cannot execute arm64
   code. The arm64 `pdfium.dll` is present in the package and exports the same functions, but
   loading it is unverified.
-- The NuGet package from a separate consumer app outside the repository, restored from a local folder
+- On 2026-11-20: the NuGet package from a separate consumer app outside the repository, restored from a local folder
   into an empty package cache, with the .NET 10 SDK (10.0.404) on `net8.0-windows` and `net10.0-windows` and
   the .NET 8 SDK (8.0.428) on `net8.0-windows`: for win-x64, win-x86 and win-arm64, both `dotnet build -r`
   and `dotnet publish -r` put the `pdfium.dll` of that architecture next to the exe (checked by SHA-256
   against the PDFium package and by the file's machine type); a build with no runtime identifier puts all
   three under `runtimes`. The x64, x86 and no-runtime-identifier builds were run and printed a two-page PDF
   to *Microsoft Print to PDF* (two pages in the output file). The arm64 builds were checked as files only.
-- The self-contained single-file test-print sample (win-x64) printed a two-page PDF to
+- On 2026-11-20: the self-contained single-file test-print sample (win-x64) printed a two-page PDF to
   *Microsoft Print to PDF*.

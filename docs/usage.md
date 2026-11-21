@@ -245,8 +245,10 @@ ordinary PDF form (an AcroForm), with the values they hold. PDFium, the PDF engi
 when it draws a page, so before a page with fields is drawn for the first time, PDFStream makes a copy of that
 page in its own copy of the PDF in memory, draws the fields into the copy exactly as they print, and prints the
 copy instead of the page. The copy keeps everything the page shows, including fonts, images and page sizes it
-takes from elsewhere in the PDF. Your file or byte array is never changed, and pages without fields are drawn
-untouched.
+takes from elsewhere in the PDF. Before the copy is used, PDFStream checks that it looks exactly like the page;
+if it does not (this happens on a page with layers that the PDF switches off, because the copy's layers are not
+the ones the PDF's layer settings name), the fields are drawn into the page itself instead, which keeps those
+layers off the paper. Your file or byte array is never changed, and pages without fields are drawn untouched.
 
 - **Fields print as they print from a PDF viewer.** A field that is not marked for printing (a "screen only"
   field, such as an instruction or a button) stays off the paper.
@@ -261,6 +263,10 @@ untouched.
   prints its ordinary fields. Save or print such a form to a plain PDF first.
 - If a page's fields cannot be prepared for any reason, the page still prints, without its fields, as earlier
   versions printed it.
-- **A page with fields costs a little more.** It is read once more, and until the print call returns its copy
-  holds a second copy of what the page uses (its fonts and images, for example) in memory. Pages without
-  fields cost nothing extra.
+- **A page with fields costs a little more.** It is copied, drawn twice at low resolution for the check above
+  and read once more, and until the print call returns its copy holds a second copy of what the page uses (its
+  fonts and images, for example) in memory. Pages without fields cost nothing extra.
+- **Known limitation.** A page that has form fields *and* layers the PDF switches off *and* takes its fonts or
+  images from the PDF's page tree instead of carrying them itself can print without those fonts or images
+  (the fields are drawn into the page itself, which hides what it takes from the page tree). Such files are
+  rare; see [troubleshooting.md](troubleshooting.md#form-fields-are-missing-on-the-paper) for a workaround.
