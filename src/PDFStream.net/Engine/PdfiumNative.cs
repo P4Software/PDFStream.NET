@@ -255,11 +255,15 @@ internal static class PdfiumNative
     /// (the page count appends them). Returns false if a page index is invalid.
     /// </summary>
     /// <remarks>
-    /// PDFStream.net passes the same document as both, to copy a page with form fields to the end of its own
-    /// in-memory document. The copy gets the attributes the page inherits from the page tree written onto itself,
-    /// and its own copies of the objects the page refers to (checked with the bundled build: a copy of a page that
-    /// inherits its MediaBox, Resources and Rotate draws the same pixels as the page, and has a MediaBox of its
-    /// own). <c>unsigned long</c> is 32 bits on Windows, for x86 and x64 alike.
+    /// PDFStream.net passes the same document as both, to copy its pages with form fields to the end of its own
+    /// in-memory document, all in one call. Each copy gets the attributes its page inherits from the page tree
+    /// written onto itself, and the copies get their own copies of the objects the pages refer to (checked with the
+    /// bundled build: a copy of a page that inherits its MediaBox, Resources and Rotate draws the same pixels as
+    /// the page, and has a MediaBox of its own). One call keeps one map from original to copied objects, so an
+    /// object several of the pages share is copied once (measured with the bundled build on x64: drawing 40 form
+    /// pages that share 8 MB of images grew private memory by 14 to 17 MB, against about 290 MB with one call per
+    /// page).
+    /// <c>unsigned long</c> is 32 bits on Windows, for x86 and x64 alike.
     /// </remarks>
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern int FPDF_ImportPagesByIndex(IntPtr destination, IntPtr source, int[] pageIndices, uint length, int index);

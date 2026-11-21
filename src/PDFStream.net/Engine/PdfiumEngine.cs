@@ -13,9 +13,10 @@ internal sealed class PdfiumEngine : IPdfEngine
     /// <param name="flattenPage">How the documents it opens flatten a page with form fields (or its copy);
     /// <see langword="null"/> (the default, and what PDFStream.net uses) means PDFium's own <c>FPDFPage_Flatten</c>.
     /// Tests pass one that fails, to show that a page that cannot be flattened still prints.</param>
-    /// <param name="copyPage">How the documents it opens copy a page with form fields before flattening it;
-    /// <see langword="null"/> (the default, and what PDFStream.net uses) means PDFium's own
-    /// <c>FPDF_ImportPagesByIndex</c>. Tests pass one that fails, to show that such a page still prints.</param>
+    /// <param name="copyPage">How the documents it opens copy their pages with form fields, in one call, before
+    /// flattening them; <see langword="null"/> (the default, and what PDFStream.net uses) means PDFium's own
+    /// <c>FPDF_ImportPagesByIndex</c>. Tests pass one that fails, to show that such pages still print, or one that
+    /// counts the calls.</param>
     internal PdfiumEngine(PageFlattener? flattenPage = null, PageCopier? copyPage = null)
     {
         _flattenPage = flattenPage;

@@ -33,6 +33,9 @@ internal sealed class PdfiumDocumentHandle : SafeHandle
     /// <inheritdoc/>
     public override bool IsInvalid => handle == IntPtr.Zero;
 
+    /// <summary>The size in bytes of the PDF the document was opened from (see <see cref="PdfiumDocument.DefaultCopyBudgetBytes"/>).</summary>
+    internal long SourceLength { get; private set; }
+
     /// <summary>
     /// Copies <paramref name="pdf"/> into native memory and asks PDFium to open it.
     /// The caller must hold <see cref="PdfiumLibrary.Sync"/> and have initialised the library.
@@ -75,6 +78,7 @@ internal sealed class PdfiumDocumentHandle : SafeHandle
         }
 
         owner._buffer = buffer;
+        owner.SourceLength = pdf.Length;
         owner.SetHandle(document);
         return owner;
     }

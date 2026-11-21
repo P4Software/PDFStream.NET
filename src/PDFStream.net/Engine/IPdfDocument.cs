@@ -25,6 +25,21 @@ internal interface IPdfDocument : IDisposable
     SizeF GetPageSizePoints(int pageIndex);
 
     /// <summary>
+    /// Tells the document which pages are about to be drawn, before the first of them is, so that it can prepare
+    /// them together. Optional: a document that is never told still draws any page it is asked for. The default
+    /// does nothing.
+    /// </summary>
+    /// <remarks>
+    /// The PDFium document uses it to look for form fields only among the pages a print job will draw, and to
+    /// copy those pages in one go (see <see cref="PdfiumDocument"/>). Repeated and out-of-range indexes are
+    /// ignored; calls after the preparation has started change nothing.
+    /// </remarks>
+    /// <param name="pageIndices">The zero-based indexes of the pages about to be drawn.</param>
+    void PlanToDraw(IReadOnlyList<int> pageIndices)
+    {
+    }
+
+    /// <summary>
     /// Renders a page straight onto a Windows device context (for example a printer page),
     /// scaled to fill <paramref name="destinationPixels"/>. Vector content stays vector, which
     /// keeps print quality high and spool files small.

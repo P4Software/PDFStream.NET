@@ -617,10 +617,10 @@ public sealed class FormFieldRenderingTests
         int flattened = 0;
         var engine = new PdfiumEngine(
             CountingFlattener(() => Interlocked.Increment(ref flattened)),
-            (document, pageIndex, insertAt) =>
+            (document, pageIndices, insertAt) =>
             {
                 // A real copy, then made 100 points narrower, as a misbehaving copy might be.
-                bool copied = PdfiumNative.FPDF_ImportPagesByIndex(document, document, [pageIndex], 1, insertAt) != 0;
+                bool copied = PdfiumNative.FPDF_ImportPagesByIndex(document, document, pageIndices, (uint)pageIndices.Length, insertAt) != 0;
                 IntPtr copy = PdfiumNative.FPDF_LoadPage(document, insertAt);
                 Assert.NotEqual(IntPtr.Zero, copy);
                 PdfiumNative.FPDFPage_SetMediaBox(copy, 0, 0, FormFixtureFactory.PageWidthPoints - 100, FormFixtureFactory.PageHeightPoints);
@@ -745,10 +745,10 @@ public sealed class FormFieldRenderingTests
                 Interlocked.Increment(ref calls);
                 return PdfiumNative.FPDFPage_Flatten(page, usage);
             },
-            (document, pageIndex, insertAt) =>
+            (document, pageIndices, insertAt) =>
             {
                 Interlocked.Increment(ref calls);
-                return PdfiumNative.FPDF_ImportPagesByIndex(document, document, [pageIndex], 1, insertAt) != 0;
+                return PdfiumNative.FPDF_ImportPagesByIndex(document, document, pageIndices, (uint)pageIndices.Length, insertAt) != 0;
             });
         byte[] pdf = FormFixtureFactory.Create(new FormFixtureOptions { WithFields = false, WithPageContent = true, WithMarkupAnnotations = true });
         Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
@@ -770,7 +770,7 @@ public sealed class FormFieldRenderingTests
     public void A_form_page_is_flattened_once_for_printing()
     {
         var usages = new List<int>();
-        var copies = new List<(int PageIndex, int InsertAt)>();
+        var copies = new List<(int[] Pages, int InsertAt)>();
         var engine = new PdfiumEngine(
             (page, usage) =>
             {
@@ -781,14 +781,14 @@ public sealed class FormFieldRenderingTests
 
                 return PdfiumNative.FPDFPage_Flatten(page, usage);
             },
-            (document, pageIndex, insertAt) =>
+            (document, pageIndices, insertAt) =>
             {
                 lock (copies)
                 {
-                    copies.Add((pageIndex, insertAt));
+                    copies.Add((pageIndices, insertAt));
                 }
 
-                return PdfiumNative.FPDF_ImportPagesByIndex(document, document, [pageIndex], 1, insertAt) != 0;
+                return PdfiumNative.FPDF_ImportPagesByIndex(document, document, pageIndices, (uint)pageIndices.Length, insertAt) != 0;
             });
         Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(FormFixtureFactory.Create(), null, out IPdfDocument? document));
 
@@ -801,7 +801,247 @@ public sealed class FormFieldRenderingTests
         }
 
         Assert.Equal([PdfiumNative.FlattenForPrint], usages);
-        Assert.Equal([(0, 1)], copies);
+        (int[] pages, int insertAt) = Assert.Single(copies);
+        Assert.Equal([0], pages);
+        Assert.Equal(1, insertAt);
+    }
+
+    /// <summary>
+    /// The pages with form fields are copied in one PDFium call, whichever path draws them and in whatever order,
+    /// so an object they share (here one resource dictionary with its images, inherited from the page tree or
+    /// named by every page) is copied once, not once per page. Copying page by page made memory grow with the
+    /// number of form pages times the size of what they share. Every page still shows its image and its field.
+    /// </summary>
+    [Theory]
+    [InlineData(SharedResources.Inherited)]
+    [InlineData(SharedResources.Indirect)]
+    public void All_form_pages_are_copied_in_one_go(SharedResources resources)
+    {
+        const int Pages = 12;
+        byte[] pdf = SharedResourceFixtureFactory.Create(Pages, images: 2, withFields: true, resources);
+        var copies = new List<(int[] Pages, int InsertAt)>();
+        var engine = new PdfiumEngine(flattenPage: null, RecordingCopier(copies));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        {
+            foreach (int page in new[] { 5, 0, 11, 1, 2, 3, 4, 6, 7, 8, 9, 10, 5 })
+            {
+                using Bitmap picture = Render(document!, page % 2 == 0 ? RenderPath.Bitmap : RenderPath.DeviceContext, page);
+                AssertSharedResourcePage(picture, page);
+            }
+        }
+
+        (int[] pages, int insertAt) = Assert.Single(copies);
+        Assert.Equal(Enumerable.Range(0, Pages), pages);
+        Assert.Equal(Pages, insertAt);
+    }
+
+    /// <summary>
+    /// When the pages share one resource dictionary, each page still draws only its own field, also when a page
+    /// is drawn again after the others. Flattening a copy adds its fields to the copy's resources under a new
+    /// name (FFT0, FFT1, ...); with copies that share one dictionary every flatten adds to the same one, so a page
+    /// that drew another page's name would print that page's fields.
+    /// </summary>
+    [Theory]
+    [InlineData(SharedResources.Inherited, RenderPath.Bitmap)]
+    [InlineData(SharedResources.Inherited, RenderPath.DeviceContext)]
+    [InlineData(SharedResources.Indirect, RenderPath.Bitmap)]
+    [InlineData(SharedResources.Indirect, RenderPath.DeviceContext)]
+    public void Each_page_draws_only_its_own_field_when_the_pages_share_their_resources(SharedResources resources, RenderPath path)
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(4, images: 1, withFields: true, resources);
+
+        using IPdfDocument document = Load(pdf);
+        using Bitmap first = Render(document, path, pageIndex: 0);
+        for (int page = 0; page < 4; page++)
+        {
+            using Bitmap picture = Render(document, path, page);
+            AssertSharedResourcePage(picture, page);
+        }
+
+        using Bitmap firstAgain = Render(document, path, pageIndex: 0);
+        AssertSamePixels(first, firstAgain);
+    }
+
+    /// <summary>
+    /// Two pages that share one content array and one resource dictionary each print only their own field, also
+    /// when the first is drawn again after the second. Their copies, made in one go, share those objects too, and
+    /// flattening the first copy appends its fields to the shared array: without the comparison of the second
+    /// page, that page would print the first page's fields as well (with inherited resources, each copy has its
+    /// own dictionary, so the appended name finds nothing on the other page).
+    /// </summary>
+    [Theory]
+    [InlineData(SharedResources.Inherited, RenderPath.Bitmap)]
+    [InlineData(SharedResources.Inherited, RenderPath.DeviceContext)]
+    [InlineData(SharedResources.Indirect, RenderPath.Bitmap)]
+    [InlineData(SharedResources.Indirect, RenderPath.DeviceContext)]
+    public void Pages_that_share_their_content_array_each_print_only_their_own_field(SharedResources resources, RenderPath path)
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(2, images: 1, withFields: true, resources, sharedContentArray: true);
+
+        using IPdfDocument document = Load(pdf);
+        using Bitmap first = Render(document, path, pageIndex: 0);
+        AssertSharedResourcePage(first, 0);
+        using Bitmap second = Render(document, path, pageIndex: 1);
+        AssertSharedResourcePage(second, 1);
+        using Bitmap firstAgain = Render(document, path, pageIndex: 0);
+        AssertSharedResourcePage(firstAgain, 0);
+        AssertSamePixels(first, firstAgain);
+    }
+
+    /// <summary>
+    /// A print job looks for form fields only among the pages it prints, and copies those pages (each once, in the
+    /// order of the job) in one go.
+    /// </summary>
+    [Fact]
+    public void A_print_job_copies_only_the_form_pages_it_prints()
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(6, images: 1, withFields: true, SharedResources.Inherited);
+        var copies = new List<(int[] Pages, int InsertAt)>();
+        var engine = new PdfiumEngine(flattenPage: null, RecordingCopier(copies));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        using (var controller = new FakePrintController())
+        {
+            PrintResult result = PrintJob.Run(document!, [4, 1, 4], TestPrinters.Settings(), "Planned pages", ScaleMode.FitToPage, CancellationToken.None, controller);
+            Assert.True(result.Succeeded, result.Message);
+            Assert.Equal(3, result.PagesPrinted);
+        }
+
+        (int[] pages, int insertAt) = Assert.Single(copies);
+        Assert.Equal([4, 1], pages);
+        Assert.Equal(6, insertAt);
+    }
+
+    /// <summary>
+    /// A page drawn although it was not among the pages planned for drawing gets no copy of its own (the one copy
+    /// of the document has been made); its fields are flattened into the page itself, so they still print.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void A_page_drawn_outside_the_planned_pages_still_prints_its_fields(RenderPath path)
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(3, images: 1, withFields: true, SharedResources.Indirect);
+        var copies = new List<(int[] Pages, int InsertAt)>();
+        var engine = new PdfiumEngine(flattenPage: null, RecordingCopier(copies));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        {
+            document!.PlanToDraw([0]);
+            using Bitmap planned = Render(document, path, pageIndex: 0);
+            AssertSharedResourcePage(planned, 0);
+            using Bitmap unplanned = Render(document, path, pageIndex: 2);
+            AssertSharedResourcePage(unplanned, 2);
+        }
+
+        (int[] pages, _) = Assert.Single(copies);
+        Assert.Equal([0], pages);
+    }
+
+    /// <summary>
+    /// A PDF larger than the copy budget gets no copy at all: the fields of every page are flattened into the page
+    /// itself, and they all print. A page that carries its resources itself loses nothing; a page that inherits
+    /// them from the page tree loses its image, which is the documented limitation of that fallback (asserted, so
+    /// that a change is noticed). No error is reported.
+    /// </summary>
+    [Theory]
+    [InlineData(SharedResources.Inherited, RenderPath.Bitmap)]
+    [InlineData(SharedResources.Inherited, RenderPath.DeviceContext)]
+    [InlineData(SharedResources.Indirect, RenderPath.Bitmap)]
+    [InlineData(SharedResources.Indirect, RenderPath.DeviceContext)]
+    public void A_pdf_over_the_copy_budget_has_its_fields_drawn_into_the_pages_themselves(SharedResources resources, RenderPath path)
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(4, images: 1, withFields: true, resources);
+        var copies = new List<(int[] Pages, int InsertAt)>();
+        var engine = new PdfiumEngine(flattenPage: null, RecordingCopier(copies));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        {
+            ((PdfiumDocument)document!).CopyBudgetBytes = pdf.Length - 1;
+            for (int page = 0; page < 4; page++)
+            {
+                using Bitmap picture = Render(document, path, page);
+                AssertSharedResourcePage(picture, page, imageDrawn: resources == SharedResources.Indirect);
+            }
+        }
+
+        Assert.Empty(copies);
+    }
+
+    /// <summary>A PDF exactly the size of the copy budget is still copied, and every page shows its image and field.</summary>
+    [Fact]
+    public void A_pdf_exactly_at_the_copy_budget_is_copied()
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(4, images: 1, withFields: true, SharedResources.Inherited);
+        var copies = new List<(int[] Pages, int InsertAt)>();
+        var engine = new PdfiumEngine(flattenPage: null, RecordingCopier(copies));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        {
+            ((PdfiumDocument)document!).CopyBudgetBytes = pdf.Length;
+            for (int page = 0; page < 4; page++)
+            {
+                using Bitmap picture = Render(document, RenderPath.Bitmap, page);
+                AssertSharedResourcePage(picture, page);
+            }
+        }
+
+        Assert.Single(copies);
+    }
+
+    /// <summary>The copy budget is 64 MB, the number the documentation states.</summary>
+    [Fact]
+    public void The_copy_budget_is_64_MB()
+    {
+        Assert.Equal(64L * 1024 * 1024, PdfiumDocument.DefaultCopyBudgetBytes);
+        using IPdfDocument document = Load(FormFixtureFactory.Create());
+        Assert.Equal(PdfiumDocument.DefaultCopyBudgetBytes, ((PdfiumDocument)document).CopyBudgetBytes);
+    }
+
+    /// <summary>PDFium's page copy, recording each call (the pages and where their copies go) in <paramref name="calls"/>.</summary>
+    private static PageCopier RecordingCopier(List<(int[] Pages, int InsertAt)> calls) => (document, pageIndices, insertAt) =>
+    {
+        lock (calls)
+        {
+            calls.Add(([.. pageIndices], insertAt));
+        }
+
+        return PdfiumNative.FPDF_ImportPagesByIndex(document, document, pageIndices, (uint)pageIndices.Length, insertAt) != 0;
+    };
+
+    /// <summary>
+    /// Fails unless a page of a <see cref="SharedResourceFixtureFactory"/> PDF shows its own field, none of the
+    /// other pages' fields, and its image (or, when <paramref name="imageDrawn"/> is <see langword="false"/>, does
+    /// not show the image: the documented loss of a page that inherits its resources and has its fields flattened
+    /// into itself).
+    /// </summary>
+    private void AssertSharedResourcePage(Bitmap picture, int page, bool imageDrawn = true)
+    {
+        float height = SharedResourceFixtureFactory.PageHeightPoints;
+        AssertInked(picture, SharedResourceFixtureFactory.FieldOn(page).ToInnerPixels(Dpi, height), $"page {page + 1}'s own field");
+        for (int other = 1; other < 4; other++)
+        {
+            int dark = Pixels.CountDarkIn(picture, SharedResourceFixtureFactory.FieldOn(page + other).ToInnerPixels(Dpi, height));
+            Assert.True(dark == 0, $"Page {page + 1} has {dark} dark pixels where another page's field lies: that page's field was drawn on it.");
+        }
+
+        Rectangle image = SharedResourceFixtureFactory.ImageMark.ToInnerPixels(Dpi, height);
+        if (imageDrawn)
+        {
+            AssertInked(picture, image, $"page {page + 1}'s image, drawn through the shared resources");
+        }
+        else
+        {
+            int dark = Pixels.CountDarkIn(picture, image);
+            _output.WriteLine($"Page {page + 1}: {dark} dark pixels where the image drawn through inherited resources lies (documented limitation: expected missing)");
+            Assert.True(dark <= image.Width * image.Height * 0.05, $"Expected page {page + 1}'s image to be missing (documented limitation), found {dark} dark pixels.");
+        }
     }
 
     /// <summary>A flattener that fails the way <paramref name="failure"/> names, without touching the page.</summary>

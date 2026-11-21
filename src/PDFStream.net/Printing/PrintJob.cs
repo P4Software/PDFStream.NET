@@ -86,6 +86,10 @@ internal static class PrintJob
                 return PrintResult.Failure(PrintStatus.Cancelled);
             }
 
+            // Tell the document which pages this job draws, so that it prepares only those (for PDFium: looks for
+            // form fields among them and copies the ones that have fields in one go). Nothing is read here yet.
+            doc.PlanToDraw(pages);
+
             // Asking the driver for its maximum is slow on some printers, so only when it matters.
             short requestedCopies = settings.Copies;
             int driverMaximum = requestedCopies > 1 ? settings.MaximumCopies : 1;
