@@ -572,35 +572,41 @@ public sealed class FormFieldRenderingTests
 
     /// <summary>
     /// A page that cannot be copied (PDFium reports failure, or the call throws, as a pdfium.dll without the
-    /// function would) is drawn exactly as PDFium draws it without any form handling, and is never flattened:
-    /// the fields stay blank, as before, and nothing else changes.
+    /// function would) has its fields flattened into the page itself, as before the copy was introduced: the
+    /// fields print, and the page is flattened exactly once. A page with its own resources loses nothing. A page
+    /// that takes its resources from the page tree loses what it draws through them, which is the documented
+    /// limitation of that fallback (an empty /Resources of its own then hides the inherited one).
     /// </summary>
     [Theory]
-    [InlineData("reports failure", RenderPath.Bitmap)]
-    [InlineData("reports failure", RenderPath.DeviceContext)]
-    [InlineData("throws", RenderPath.Bitmap)]
-    [InlineData("throws", RenderPath.DeviceContext)]
-    public void A_page_that_cannot_be_copied_is_drawn_as_it_is(string failure, RenderPath path)
+    [InlineData("reports failure", RenderPath.Bitmap, false)]
+    [InlineData("reports failure", RenderPath.DeviceContext, false)]
+    [InlineData("throws", RenderPath.Bitmap, false)]
+    [InlineData("throws", RenderPath.DeviceContext, false)]
+    [InlineData("reports failure", RenderPath.Bitmap, true)]
+    [InlineData("reports failure", RenderPath.DeviceContext, true)]
+    [InlineData("throws", RenderPath.Bitmap, true)]
+    [InlineData("throws", RenderPath.DeviceContext, true)]
+    public void A_page_that_cannot_be_copied_has_its_fields_drawn_into_the_page_itself(string failure, RenderPath path, bool inherited)
     {
-        byte[] pdf = FormFixtureFactory.Create(Variant("inherited resources"));
+        byte[] pdf = FormFixtureFactory.Create(Variant(inherited ? "inherited resources" : "page resources"));
         int flattened = 0;
-        var engine = new PdfiumEngine((_, _) => Interlocked.Increment(ref flattened), FailingCopier(failure));
+        var engine = new PdfiumEngine(CountingFlattener(() => Interlocked.Increment(ref flattened)), FailingCopier(failure));
         Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
 
         using (document)
         using (Bitmap ours = Render(document!, path))
         using (Bitmap reference = Reference(pdf, path, ours.Size))
         {
-            AssertInked(ours, FormFixtureFactory.ResourceXObject, "the XObject the page draws through its inherited resources");
-            AssertSamePixels(reference, ours);
+            AssertFieldsDrawnIntoThePageItself(ours, reference, inherited, path);
         }
 
-        Assert.Equal(0, flattened);
+        Assert.Equal(1, flattened);
     }
 
     /// <summary>
     /// A copy that does not come out exactly the size of the page is not used (whatever it printed would land
-    /// in the wrong place): the page itself is drawn as PDFium draws it, and the copy is never flattened.
+    /// in the wrong place) and is never flattened: the fields are flattened into the page itself instead, once,
+    /// with the documented loss for a page that takes its resources from the page tree.
     /// </summary>
     [Theory]
     [InlineData(RenderPath.Bitmap)]
@@ -610,7 +616,7 @@ public sealed class FormFieldRenderingTests
         byte[] pdf = FormFixtureFactory.Create(Variant("inherited resources"));
         int flattened = 0;
         var engine = new PdfiumEngine(
-            (_, _) => Interlocked.Increment(ref flattened),
+            CountingFlattener(() => Interlocked.Increment(ref flattened)),
             (document, pageIndex, insertAt) =>
             {
                 // A real copy, then made 100 points narrower, as a misbehaving copy might be.
@@ -628,10 +634,64 @@ public sealed class FormFieldRenderingTests
         using (Bitmap reference = Reference(pdf, path, ours.Size))
         {
             Assert.Equal(new SizeF(FormFixtureFactory.PageWidthPoints, FormFixtureFactory.PageHeightPoints), document!.GetPageSizePoints(0));
-            AssertSamePixels(reference, ours);
+            AssertFieldsDrawnIntoThePageItself(ours, reference, inherited: true, path);
         }
 
-        Assert.Equal(0, flattened);
+        Assert.Equal(1, flattened);
+    }
+
+    /// <summary>
+    /// A copy whose fields cannot be flattened (the first flatten, on the copy, fails) is not used: the fields are
+    /// flattened into the page itself instead, so they still print.
+    /// </summary>
+    [Theory]
+    [InlineData("reports failure", RenderPath.Bitmap)]
+    [InlineData("reports failure", RenderPath.DeviceContext)]
+    [InlineData("throws", RenderPath.Bitmap)]
+    [InlineData("throws", RenderPath.DeviceContext)]
+    public void A_copy_whose_fields_cannot_be_flattened_has_them_drawn_into_the_page_itself(string failure, RenderPath path)
+    {
+        byte[] pdf = FormFixtureFactory.Create(Variant("page resources"));
+        int calls = 0;
+        PageFlattener failFirst = FailingFlattener(failure);
+        var engine = new PdfiumEngine((page, usage) => Interlocked.Increment(ref calls) == 1 ? failFirst(page, usage) : PdfiumNative.FPDFPage_Flatten(page, usage));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        using (Bitmap ours = Render(document!, path))
+        using (Bitmap reference = Reference(pdf, path, ours.Size))
+        {
+            AssertFieldsDrawnIntoThePageItself(ours, reference, inherited: false, path);
+        }
+
+        Assert.Equal(2, calls);
+    }
+
+    /// <summary>
+    /// A page whose annotation list also names an object the file does not contain (a damaged reference) still
+    /// prints its fields, and everything else on it, on both paths. PDFium's page copy drops the whole annotation
+    /// list because of that one entry, so the copy has no fields at all, and drawing it would leave them blank
+    /// (the pixel check cannot see this, because it is drawn without the fields). Such a copy must not be used:
+    /// the fields are drawn into the page itself.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void A_damaged_reference_in_the_annotation_list_does_not_leave_the_fields_blank(RenderPath path)
+    {
+        byte[] pdf = FormFixtureFactory.Create(new FormFixtureOptions { WithPageContent = true, WithDanglingAnnotationReference = true });
+
+        using IPdfDocument document = Load(pdf);
+        using Bitmap ours = Render(document, path);
+        using Bitmap reference = Reference(pdf, path, ours.Size);
+
+        AssertInked(ours, FormFixtureFactory.TextField, "the filled text field");
+        AssertInked(ours, FormFixtureFactory.CheckBox, "the ticked checkbox");
+        AssertInked(ours, FormFixtureFactory.PageMark, "the page's own black square");
+        (int lost, int gained) = CompareInk(reference, ours);
+        _output.WriteLine($"{path}: lost {lost}, gained {gained}");
+        Assert.Equal(0, lost);
+        AssertFieldsAddTheirAreaAndNothingElse(gained, FieldArea);
     }
 
     /// <summary>A print job over a page that cannot be copied still succeeds and prints the page.</summary>
@@ -750,6 +810,13 @@ public sealed class FormFieldRenderingTests
         "reports failure" => (_, _) => 0,
         "throws" => (_, _) => throw new EntryPointNotFoundException("Unable to find an entry point named 'FPDFPage_Flatten' in DLL 'pdfium'."),
         _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Unknown failure."),
+    };
+
+    /// <summary>PDFium's own flattener, which also calls <paramref name="counted"/> every time it is used.</summary>
+    private static PageFlattener CountingFlattener(Action counted) => (page, usage) =>
+    {
+        counted();
+        return PdfiumNative.FPDFPage_Flatten(page, usage);
     };
 
     /// <summary>A page copier that fails the way <paramref name="failure"/> names, without copying anything.</summary>
@@ -887,6 +954,42 @@ public sealed class FormFieldRenderingTests
         }
 
         Assert.True(missing.Count == 0, "Expected these to be drawn: " + string.Join("; ", missing) + ".");
+    }
+
+    /// <summary>
+    /// Fails unless a fixture page whose fields were flattened into the page itself (the fallback when its copy
+    /// cannot be used) shows both printable fields and its own content. With its own resources, nothing PDFium
+    /// draws is lost. With resources taken from the page tree, the form XObject and the image drawn through them
+    /// are missing: that is the documented limitation of the fallback, asserted here so that a change in it is
+    /// noticed (if it is ever solved, this branch of the check must change with the docs).
+    /// </summary>
+    private void AssertFieldsDrawnIntoThePageItself(Bitmap ours, Bitmap reference, bool inherited, RenderPath path)
+    {
+        AssertInked(ours, FormFixtureFactory.TextField, "the filled text field");
+        AssertInked(ours, FormFixtureFactory.CheckBox, "the ticked checkbox");
+        AssertInked(ours, FormFixtureFactory.PageMark, "the page's own black square");
+        (int lost, int gained) = CompareInk(reference, ours);
+        _output.WriteLine($"{path}, {(inherited ? "inherited" : "own")} resources: lost {lost}, gained {gained}");
+        if (inherited)
+        {
+            AssertNotInked(ours, FormFixtureFactory.ResourceXObject, "the form XObject drawn through the inherited resources (documented limitation)");
+            AssertNotInked(ours, FormFixtureFactory.ResourceImage, "the image drawn through the inherited resources (documented limitation)");
+        }
+        else
+        {
+            Assert.Equal(0, lost);
+            AssertFieldsAddTheirAreaAndNothingElse(gained, FieldArea);
+        }
+    }
+
+    /// <summary>Fails unless (nearly) none of the inner area of <paramref name="area"/> is dark.</summary>
+    private void AssertNotInked(Bitmap page, PdfRect area, string what)
+    {
+        Rectangle inner = area.ToInnerPixels(Dpi);
+        int dark = Pixels.CountDarkIn(page, inner);
+        int total = inner.Width * inner.Height;
+        _output.WriteLine($"Dark pixels in {what}: {dark} of {total}");
+        Assert.True(dark <= total * 0.05, $"Expected {what} to be missing: {dark} of its {total} pixels are dark.");
     }
 
     /// <summary>Fails unless (nearly) the whole inner area of <paramref name="field"/> is dark.</summary>

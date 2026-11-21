@@ -264,12 +264,15 @@ layers off the paper. Your file or byte array is never changed, and pages withou
   XFA (a "dynamic" form from Adobe LiveCycle or AEM Designer) has no ordinary fields to print, so only the page
   content prints, which for such forms is often a single "Please wait..." page. A form that carries both kinds
   prints its ordinary fields. Save or print such a form to a plain PDF first.
-- If a page's fields cannot be prepared for any reason, the page still prints, without its fields, as earlier
+- If the copy of a page cannot be used for any reason (see the known limitation below), the fields are drawn
+  into the page itself instead. Only if that fails too does the page print without its fields, as earlier
   versions printed it.
 - **A page with fields costs a little more.** It is copied, drawn twice at low resolution for the check above
   and read once more, and until the print call returns its copy holds a second copy of what the page uses (its
   fonts and images, for example) in memory. Pages without fields cost nothing extra.
-- **Known limitation.** A page that has form fields *and* layers the PDF switches off *and* takes its fonts or
-  images from the PDF's page tree instead of carrying them itself can print without those fonts or images
-  (the fields are drawn into the page itself, which hides what it takes from the page tree). Such files are
-  rare; see [troubleshooting.md](troubleshooting.md#form-fields-are-missing-on-the-paper) for a workaround.
+- **Known limitation.** A page that has form fields *and* takes its fonts or images from the PDF's page tree
+  instead of carrying them itself, *and* whose copy cannot be used, can print without those fonts or images
+  (the fields are then drawn into the page itself, which hides what it takes from the page tree). The copy
+  cannot be used, for example, on a page with layers the PDF switches off, or on a page that refers to
+  something the file does not contain (a damaged PDF). Such files are rare; see
+  [troubleshooting.md](troubleshooting.md#form-fields-are-missing-on-the-paper) for a workaround.

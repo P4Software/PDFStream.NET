@@ -100,6 +100,13 @@ public sealed record FormFixtureOptions
     /// form fields. <see langword="null"/> (the default) keeps 400 x 300.
     /// </summary>
     public PdfRect? MediaBox { get; init; }
+
+    /// <summary>
+    /// When <see langword="true"/>, the page's /Annots array also names object 99, which the file does not
+    /// contain: a damaged reference, of the kind hand edits and some generators leave behind. PDF readers skip
+    /// such an entry; PDFium's page copy drops the whole /Annots array because of it.
+    /// </summary>
+    public bool WithDanglingAnnotationReference { get; init; }
 }
 
 /// <summary>
@@ -240,6 +247,12 @@ public static class FormFixtureFactory
         if (o.WithMarkupAnnotations)
         {
             annotations.AddRange(["13 0 R", "15 0 R"]);
+        }
+
+        if (o.WithDanglingAnnotationReference)
+        {
+            // Object 99 is never written (the file has 24 objects), so this entry cannot be resolved.
+            annotations.Add("99 0 R");
         }
 
         var content = new StringBuilder();
