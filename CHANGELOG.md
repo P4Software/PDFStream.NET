@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PDFStream are recorded here. The format follows
+All notable changes to PDFStream.net are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
@@ -10,7 +10,7 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
 
 ### Added
 
-- Solution scaffold: the `PDFStream` library and its xUnit.net test project, targeting
+- Solution scaffold: the `PDFStream.net` library and its xUnit.net test project, targeting
   `net8.0-windows` and `net10.0-windows`.
 - `PdfPrinter.Print` for a file path, a stream or a byte array, with `PrintOptions` (printer name, document
   name, password, page range, copies, duplex, colour, fit to page or actual size, paper source, output file)
@@ -24,7 +24,7 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   cause. A printer that only reports Offline is not refused.
 - Filled-in form fields (text fields, checkboxes and the other fields of an ordinary PDF form) print on both
   print paths. PDFium never draws form fields when it draws a page, so before a page with fields is first
-  drawn PDFStream copies that page inside its own in-memory copy of the PDF, with everything the page inherits
+  drawn PDFStream.net copies that page inside its own in-memory copy of the PDF, with everything the page inherits
   from the PDF's page tree (its fonts, images and page boxes included), flattens the fields into the copy as
   they print, and prints the copy in place of the page. The copy is used only if it looks exactly like the
   page; a page with layers the PDF switches off has its fields drawn into the page itself instead, which keeps
@@ -46,7 +46,7 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   `bblanchon.PDFium.Win32`), with their licences in `THIRD-PARTY-NOTICES.md`.
 - Real-print acceptance tests through *Microsoft Print to PDF* that check the produced pages for ink, and a
   manual release checklist (`docs/release-checklist.md`).
-- `samples/PDFStream.TestPrint`: a double-click test-print program (net10.0-windows). It reads a
+- `samples/PDFStream.net.TestPrint`: a double-click test-print program (net10.0-windows). It reads a
   commented `settings.json` next to the exe (created on the first run), lists the installed printers,
   and does a dry run by default; `ReallyPrint` set to `true` really prints. It always waits for a key
   press so the result can be read, uses only the public API, and accepts paths pasted with quote marks.
@@ -62,9 +62,10 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
 
 ### Changed
 
-- The NuGet package is named `PDFStream.net` (`dotnet add package PDFStream.net`); that is the only name it
-  shows on nuget.org. The assembly (`PDFStream.dll`) and the namespace (`PDFStream`) keep the name
-  `PDFStream`, so code still says `using PDFStream;`.
+- The product is named `PDFStream.net` everywhere: the NuGet package (`dotnet add package PDFStream.net`), the
+  assembly (`PDFStream.net.dll`) and the C# namespace, so code says `using PDFStream.net;`. The projects, the
+  solution and the test-print sample carry the same name. The type names (`PdfPrinter`, `PrintOptions`, ...) are
+  unchanged. This was decided before the first release, while no program depends on the library yet.
 
 - The C# language version is pinned to 12.0 instead of "latest", so the language no longer changes with the
   installed SDK. C# 12 is the newest version the .NET 8 SDK supports.
@@ -76,7 +77,7 @@ from the last run, on 2026-11-21):
 
 - win-x64: `net8.0-windows` (390 tests) and `net10.0-windows` (415 tests), all passed, none skipped.
 - win-x86: `net8.0-windows` (390 tests) and `net10.0-windows` (415 tests)
-  (`dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --arch x86`), all passed, none
+  (`dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --arch x86`), all passed, none
   skipped; the tests logged `Process architecture: X86`. On the first 32-bit `net10.0-windows` run of the
   day, one real-print test timed out waiting for *Microsoft Print to PDF* to finish writing its file; the
   re-run passed.
@@ -90,5 +91,11 @@ from the last run, on 2026-11-21):
   against the PDFium package and by the file's machine type); a build with no runtime identifier puts all
   three under `runtimes`. The x64, x86 and no-runtime-identifier builds were run and printed a two-page PDF
   to *Microsoft Print to PDF* (two pages in the output file). The arm64 builds were checked as files only.
+- On 2026-11-21, after the assembly and namespace were renamed to `PDFStream.net`: the package was packed again and
+  used from separate win-x64 and win-x86 apps outside the repository (empty package cache, local folder feed,
+  `using PDFStream.net;`); both printed a two-page PDF to *Microsoft Print to PDF* (two pages in the output file) and
+  `pdfium.dll` of the right architecture was next to the exe. The package holds `lib/net8.0-windows7.0/PDFStream.net.dll`
+  and `lib/net10.0-windows7.0/PDFStream.net.dll`; the self-contained test-print sample was published as
+  `PDFStream.net.TestPrint.exe` and its dry run says `PDFStream.net test print`.
 - On 2026-11-20: the self-contained single-file test-print sample (win-x64) printed a two-page PDF to
   *Microsoft Print to PDF*.

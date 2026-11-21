@@ -1,4 +1,4 @@
-# Contributing to PDFStream
+# Contributing to PDFStream.net
 
 Thank you for helping. Bug reports, printer and driver reports, documentation fixes and pull requests are all
 welcome. Please open an [issue](https://github.com/P4Software/PDFStream/issues) before a large change, so we
@@ -39,8 +39,8 @@ For the same reason, filter tests with the Testing Platform options (`--filter-m
 
 ```text
 dotnet build
-dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --framework net8.0-windows
-dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --framework net10.0-windows
+dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net8.0-windows
+dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net10.0-windows
 ```
 
 Run both frameworks before you open a pull request. The sample's tests only exist for `net10.0-windows`,
@@ -49,16 +49,16 @@ because the sample targets only that framework.
 One test, one class, or one category:
 
 ```text
-dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --framework net10.0-windows --filter-method "PDFStream.Tests.Acceptance.RealPrintTests.Prints_three_page_pdf_to_file_with_three_pages_and_non_blank_output"
-dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --framework net10.0-windows --filter-class "PDFStream.Tests.PdfPrinterTests"
-dotnet test --project tests/PDFStream.Tests --filter-trait "Category=RealPrinter" --framework net8.0-windows
+dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net10.0-windows --filter-method "PDFStream.net.Tests.Acceptance.RealPrintTests.Prints_three_page_pdf_to_file_with_three_pages_and_non_blank_output"
+dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net10.0-windows --filter-class "PDFStream.net.Tests.PdfPrinterTests"
+dotnet test --project tests/PDFStream.net.Tests --filter-trait "Category=RealPrinter" --framework net8.0-windows
 ```
 
 32-bit (x86) runs, which load the x86 `pdfium.dll`:
 
 ```text
-dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --arch x86 --framework net8.0-windows
-dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj --arch x86 --framework net10.0-windows
+dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --arch x86 --framework net8.0-windows
+dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --arch x86 --framework net10.0-windows
 ```
 
 Arm64 cannot be tested on an x64 machine; it is a manual check on a real Arm64 PC.
@@ -72,12 +72,12 @@ Telemetry: to keep the .NET CLI and the Testing Platform from sending usage data
 ## Package and sample
 
 ```text
-dotnet pack src/PDFStream/PDFStream.csproj --configuration Release --output artifacts/package
-dotnet publish samples/PDFStream.TestPrint/PDFStream.TestPrint.csproj --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:PublishDocumentationFiles=false --output artifacts/testprint
+dotnet pack src/PDFStream.net/PDFStream.net.csproj --configuration Release --output artifacts/package
+dotnet publish samples/PDFStream.net.TestPrint/PDFStream.net.TestPrint.csproj --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:PublishDocumentationFiles=false --output artifacts/testprint
 ```
 
 The package is named `PDFStream.net`, so `dotnet pack` writes `artifacts/package/PDFStream.net.<version>.nupkg`.
-The assembly (`PDFStream.dll`) and the namespace (`PDFStream`) keep the name `PDFStream`.
+The assembly inside it is `PDFStream.net.dll` and the namespace is `PDFStream.net`.
 
 The package does not contain `pdfium.dll` itself: it depends on the `bblanchon.PDFium.Win32` package, whose
 `runtimes/win-x64`, `win-x86` and `win-arm64` folders give a consuming app the right copy. If you change

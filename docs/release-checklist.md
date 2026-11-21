@@ -1,4 +1,4 @@
-# PDFStream release checklist
+# PDFStream.net release checklist
 
 Run these checks before each release. Rows marked "Not run" have not been done: nothing here counts as
 verified until someone has run it, written the machine, the date, the result and their initials in the row,
@@ -12,8 +12,8 @@ The real-print acceptance tests print through *Microsoft Print to PDF* into a te
 produced PDF with the library's own engine and check the page count and that no page is blank. Run them with:
 
 ```
-dotnet test --project tests/PDFStream.Tests --filter-trait "Category=RealPrinter"
-dotnet test --project tests/PDFStream.Tests --filter-trait "Category=RealPrinter" -f net10.0-windows --arch x86
+dotnet test --project tests/PDFStream.net.Tests --filter-trait "Category=RealPrinter"
+dotnet test --project tests/PDFStream.net.Tests --filter-trait "Category=RealPrinter" -f net10.0-windows --arch x86
 ```
 
 A machine without the printer skips them and says why. They do not replace the manual checks in section 2:

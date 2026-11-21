@@ -53,8 +53,8 @@ PDFStream.net is not published on NuGet yet. Once it is:
 dotnet add package PDFStream.net
 ```
 
-The package is called `PDFStream.net`; in your code the namespace and the assembly are `PDFStream`
-(`using PDFStream;`, `PDFStream.dll`).
+The package, the assembly and the namespace are all called `PDFStream.net`: in your code you write
+`using PDFStream.net;`.
 
 Until then, build the package from this repository (see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream/blob/main/CONTRIBUTING.md)) and add the
 folder it lands in as a package source.
@@ -71,7 +71,7 @@ right one next to your program. There is nothing else to install.
 ## Use it
 
 ```csharp
-using PDFStream;
+using PDFStream.net;
 
 // Print a PDF that is already in memory, for example one just downloaded from an API.
 byte[] pdf = await File.ReadAllBytesAsync("packing-slip.pdf");
@@ -126,13 +126,13 @@ were sent.
 
 ## Try it without writing code
 
-`samples/PDFStream.TestPrint` is a small program you run by double-clicking `PDFStream.TestPrint.exe`. On the
+`samples/PDFStream.net.TestPrint` is a small program you run by double-clicking `PDFStream.net.TestPrint.exe`. On the
 first run it creates a commented `settings.json` next to itself and lists your printers. Fill in the printer
 name and a PDF, and run it again: by default it is a **dry run** that only checks your settings and shows what
 it would send. Set `ReallyPrint` to `true` to print. Paths copied with Explorer's "Copy as path" work even
 though they carry quote marks. It is also a short example of using the public API.
 
-Every CI build keeps a ready-to-run copy (the `PDFStream.TestPrint-win-x64` artifact): a single exe for 64-bit
+Every CI build keeps a ready-to-run copy (the `PDFStream.net.TestPrint-win-x64` artifact): a single exe for 64-bit
 (x64) Windows only, which includes .NET and `pdfium.dll`, so .NET does not have to be installed. It is not signed,
 so Windows SmartScreen may warn before it runs, and on its first run it extracts `pdfium.dll` to a folder under
 your temporary folder. `LICENSE` and `THIRD-PARTY-NOTICES.md` come next to the exe: it carries the .NET runtime
@@ -150,7 +150,9 @@ Run on 2026-11-20 on one Windows 11 x64 machine:
   win-arm64 on both frameworks, the right `pdfium.dll` lands next to the app; the x64 and x86 builds printed
   a two-page PDF to *Microsoft Print to PDF*. On 2026-11-21, under its name `PDFStream.net`, it was packed and
   checked again from a separate win-x64 app on `net10.0-windows`, which printed a page to *Microsoft Print to
-  PDF*.
+  PDF*. After the assembly and namespace were renamed to `PDFStream.net` (also 2026-11-21), the package was packed
+  once more and used from separate win-x64 and win-x86 apps with `using PDFStream.net;`; each printed a
+  two-page PDF to *Microsoft Print to PDF* and the right `pdfium.dll` landed next to the exe.
 
 Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream/blob/main/docs/release-checklist.md)): running on an Arm64
 PC, physical printers (duplex, network printers), and printing from a Windows service, a scheduled task

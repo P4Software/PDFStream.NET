@@ -1,13 +1,13 @@
 # Printing from Windows services, scheduled tasks and IIS
 
-PDFStream is built for programs that print with nobody at the screen: a Windows service, a scheduled task,
+PDFStream.net is built for programs that print with nobody at the screen: a Windows service, a scheduled task,
 a web application in IIS. It never shows a dialog and never waits for a person. This page explains what such
 a program needs from Windows.
 
 **Status: not yet verified.** Running from a Windows service, from a scheduled task and from IIS are on the
 [release checklist](release-checklist.md) and have not been run yet. Microsoft's documentation also states
-that the `System.Drawing.Printing` classes, which PDFStream prints through, are not supported in a Windows
-service or an ASP.NET application. PDFStream turns every failure into a result with a message instead of an
+that the `System.Drawing.Printing` classes, which PDFStream.net prints through, are not supported in a Windows
+service or an ASP.NET application. PDFStream.net turns every failure into a result with a message instead of an
 exception, but until those checklist rows are run, test printing under your real account and printer before
 you rely on it.
 
@@ -89,7 +89,7 @@ If the copy is missing, every print returns `UnknownError` with details that men
 ## Several jobs at once
 
 A service or web application often prints from several threads. That is safe. PDFium, the engine that reads
-and draws PDFs, is not thread-safe, so PDFStream makes every call into it under one lock for the whole
+and draws PDFs, is not thread-safe, so PDFStream.net makes every call into it under one lock for the whole
 process. The lock is held for one engine call at a time (opening a PDF, drawing one page, closing it), not for
 a whole job, so jobs that run at the same time interleave at page level: each is still its own print job with
 its pages in order, but each takes longer than it would alone. If timing matters, print from one queue.
@@ -98,5 +98,5 @@ its pages in order, but each takes longer than it would alone. If timing matters
 
 Owner permissions inside a PDF, such as "printing not allowed", are ignored: such a PDF prints like any other.
 That is what server automation expects (a service printing a supplier's packing slip cannot ask anyone to lift
-a restriction). Only an open password stops PDFStream from
+a restriction). Only an open password stops PDFStream.net from
 reading a PDF, and you supply that in `PrintOptions.Password`.
