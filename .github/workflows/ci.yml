@@ -1,4 +1,4 @@
-# Continuous integration for PDFStream.
+# Continuous integration for PDFStream.net.
 #
 # On every push and pull request this workflow builds the solution, runs the tests for both target
 # frameworks (net8.0-windows and net10.0-windows), packs the NuGet package and publishes the test-print
@@ -86,14 +86,14 @@ jobs:
 
       - name: Test (net8.0-windows)
         run: >-
-          dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj
+          dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj
           --framework net8.0-windows --configuration Release --no-build
           --results-directory artifacts/test-results
           --report-xunit-trx --report-xunit-trx-filename net8.0-windows.trx
 
       - name: Test (net10.0-windows)
         run: >-
-          dotnet test --project tests/PDFStream.Tests/PDFStream.Tests.csproj
+          dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj
           --framework net10.0-windows --configuration Release --no-build
           --results-directory artifacts/test-results
           --report-xunit-trx --report-xunit-trx-filename net10.0-windows.trx
@@ -138,14 +138,14 @@ jobs:
           if-no-files-found: warn
 
       - name: Pack the NuGet package
-        run: dotnet pack src/PDFStream/PDFStream.csproj --configuration Release --no-build --output artifacts/package
+        run: dotnet pack src/PDFStream.net/PDFStream.net.csproj --configuration Release --no-build --output artifacts/package
 
       # Fails the run if the package lost its licence, notices, readme, metadata or PDFium dependency, or
       # picked up a file type that has no business in it (keys, certificates, settings, scripts).
       - name: Check the package contents
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          # The package id is PDFStream.net (the assembly and namespace stay PDFStream), so the file is
+          # The package id, the assembly and the namespace are all PDFStream.net, so the file is
           # PDFStream.net.<version>.nupkg and its manifest PDFStream.net.nuspec. Exactly one must exist.
           $packages = @(Get-ChildItem artifacts/package -Filter 'PDFStream.net.*.nupkg' | Where-Object { $_.Name -notlike '*.snupkg' })
           if ($packages.Count -ne 1) { throw "Expected one PDFStream.net.<version>.nupkg, found $($packages.Count): $($packages.Name -join ', ')" }
@@ -160,7 +160,7 @@ jobs:
             $reader.Dispose()
           } finally { $zip.Dispose() }
           $problems = @()
-          foreach ($required in 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'lib/net8.0-windows7.0/PDFStream.dll', 'lib/net10.0-windows7.0/PDFStream.dll') {
+          foreach ($required in 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'lib/net8.0-windows7.0/PDFStream.net.dll', 'lib/net10.0-windows7.0/PDFStream.net.dll') {
             if ($entries -notcontains $required) { $problems += "missing file: $required" }
           }
           $metadata = $nuspec.package.metadata
@@ -190,7 +190,7 @@ jobs:
       # machine without .NET installed. Not trimmed: the settings reader relies on reflection.
       - name: Publish the test-print sample (win-x64, self-contained, single file)
         run: >-
-          dotnet publish samples/PDFStream.TestPrint/PDFStream.TestPrint.csproj
+          dotnet publish samples/PDFStream.net.TestPrint/PDFStream.net.TestPrint.csproj
           --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded
           -p:PublishDocumentationFiles=false
@@ -199,6 +199,6 @@ jobs:
       - name: Upload the test-print sample
         uses: actions/upload-artifact@v7
         with:
-          name: PDFStream.TestPrint-win-x64
+          name: PDFStream.net.TestPrint-win-x64
           path: artifacts/testprint
           if-no-files-found: error
