@@ -23,7 +23,8 @@ Print to PDF has no paper, no tray, no duplex unit and no queue that can go offl
 | --- | --- | --- | --- | --- |
 | Real-print tests, x64 host, net10.0-windows | Windows 11 x64 developer workstation | 2026-11-20 | Pass (7 of 7), including the vector-path check | |
 | Real-print tests, x86 (32-bit) host, net10.0-windows | Windows 11 x64 developer workstation | 2026-11-20 | Pass (7 of 7), including the vector-path check | |
-| Real-print tests, net8.0-windows | | | Not run | |
+| Real-print tests, x64 host, net8.0-windows | Windows 11 x64 developer workstation | 2026-11-20 | Pass (7 of 7) with `dotnet test --project tests/PDFStream.Tests --filter-trait "Category=RealPrinter" --framework net8.0-windows`, and in the full net8.0-windows suite (288 of 288) | |
+| Real-print tests, x86 (32-bit) host, net8.0-windows | Windows 11 x64 developer workstation | 2026-11-20 | Pass, in the full suite with `--arch x86 --framework net8.0-windows` (288 of 288, the 7 real-print tests included) | |
 
 What the automated tests cover: three pages in, three pages out and none blank; five pages of mixed sizes and
 orientations; a page range; two software copies (Print to PDF reports a maximum of 1 copy); a password-protected

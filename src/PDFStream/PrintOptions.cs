@@ -50,5 +50,17 @@ public sealed class PrintOptions
     /// When set, the job is written to this file instead of being sent to the printer's port. It
     /// is how a "print to file" printer such as Microsoft Print to PDF runs without showing a Save As dialog.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The folder must already exist; a relative path is taken from the current folder of the process. An
+    /// existing file is replaced. An empty or blank text is not the same as leaving the option out: it returns
+    /// <see cref="PrintStatus.InvalidOptions"/>.
+    /// </para>
+    /// <para>
+    /// The print system may still be writing the file when the print call returns: Microsoft Print to PDF
+    /// finishes it a moment later. A program that opens the file straight afterwards must wait until the file
+    /// can be opened on its own (try again every half second or so, for a few seconds) instead of reading it at once.
+    /// </para>
+    /// </remarks>
     public string? OutputFile { get; init; }
 }

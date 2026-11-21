@@ -43,9 +43,12 @@ internal delegate PrintResult PrintJobRunner(
 /// no open password) prints without any password.
 /// </para>
 /// <para>
-/// PDFium, the engine that reads and draws the PDF, is not thread-safe, so all of its work is serialised
-/// across the whole process. The methods may be called from several threads at once, but the calls then
-/// print one at a time (each waits for the others' engine work), they never fail because of it.
+/// PDFium, the engine that reads and draws the PDF, is not thread-safe, so every call into it is made under
+/// one lock for the whole process. The lock is held for a single engine call (opening the PDF, measuring or
+/// drawing one page, closing it), not for a whole job. The methods may therefore be called from several
+/// threads at once: the jobs run side by side and their engine work takes turns, so they interleave at page
+/// level and each takes longer than it would alone. Each call is still its own print job with its own pages
+/// in their own order, and no call fails because another one is running.
 /// </para>
 /// </remarks>
 public static class PdfPrinter
@@ -68,7 +71,10 @@ public static class PdfPrinter
     /// The outcome, never an exception. <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only
     /// when every requested page was rendered and sent to the printer.
     /// </returns>
-    /// <remarks>PDFium work is serialised across the whole process, so concurrent calls print one at a time.</remarks>
+    /// <remarks>
+    /// Safe to call from several threads at once. PDFium work is serialised one engine call at a time across the
+    /// whole process, so concurrent calls run side by side and take turns page by page; each stays its own print job.
+    /// </remarks>
     public static PrintResult Print(string path, PrintOptions options, CancellationToken cancellationToken = default) =>
         Print(path, options, new PdfiumEngine(), SystemPrinterCatalog.Instance, RealJob, cancellationToken);
 
@@ -87,7 +93,10 @@ public static class PdfPrinter
     /// The outcome, never an exception. <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only
     /// when every requested page was rendered and sent to the printer.
     /// </returns>
-    /// <remarks>PDFium work is serialised across the whole process, so concurrent calls print one at a time.</remarks>
+    /// <remarks>
+    /// Safe to call from several threads at once. PDFium work is serialised one engine call at a time across the
+    /// whole process, so concurrent calls run side by side and take turns page by page; each stays its own print job.
+    /// </remarks>
     public static PrintResult Print(Stream pdf, PrintOptions options, CancellationToken cancellationToken = default) =>
         Print(pdf, options, new PdfiumEngine(), SystemPrinterCatalog.Instance, RealJob, cancellationToken);
 
@@ -102,7 +111,10 @@ public static class PdfPrinter
     /// The outcome, never an exception. <see cref="PrintResult.Succeeded"/> is <see langword="true"/> only
     /// when every requested page was rendered and sent to the printer.
     /// </returns>
-    /// <remarks>PDFium work is serialised across the whole process, so concurrent calls print one at a time.</remarks>
+    /// <remarks>
+    /// Safe to call from several threads at once. PDFium work is serialised one engine call at a time across the
+    /// whole process, so concurrent calls run side by side and take turns page by page; each stays its own print job.
+    /// </remarks>
     public static PrintResult Print(byte[] pdf, PrintOptions options, CancellationToken cancellationToken = default) =>
         Print(pdf, options, new PdfiumEngine(), SystemPrinterCatalog.Instance, RealJob, cancellationToken);
 
