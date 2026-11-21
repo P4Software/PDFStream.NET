@@ -45,7 +45,7 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   straight onto a Windows device context (with PDFium's printing flag) or onto a white bitmap at any
   resolution.
 - One process-wide lock around every PDFium call, because PDFium is not thread-safe. Calls from
-  several threads are safe; the lock is held per engine call, so concurrent jobs interleave at page level.
+  several threads are safe; the lock is held per engine call, so concurrent jobs interleave at page level (the first form page of a document is a longer call; see Known limitations).
 - PDFium 160.0.8165 native binaries for win-x64, win-x86 and win-arm64 (package
   `bblanchon.PDFium.Win32`), with their licences in `THIRD-PARTY-NOTICES.md`.
 - Real-print acceptance tests through *Microsoft Print to PDF* that check the produced pages for ink, and a
@@ -73,6 +73,22 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
 
 - The C# language version is pinned to 12.0 instead of "latest", so the language no longer changes with the
   installed SDK. C# 12 is the newest version the .NET 8 SDK supports.
+
+### Known limitations
+
+- Form fields: in a PDF with three or more form pages that share one indirect `/Contents` array (and one
+  indirect `/Resources` dictionary), later pages can also print the fields of earlier pages, with status `Ok`.
+  The check of each page copy catches the first affected page, but the fallback that draws the fields into the
+  page itself edits the shared array again. Workaround: flatten such a PDF before printing, or print its pages as
+  separate documents. A characterization test pins this behaviour; fixing it means changing that test and the
+  documentation. Planned for 1.0.
+- Form fields: a crafted PDF with inline inherited values can make form printing use a lot of memory (about
+  600 MB measured for a 1.2 MB PDF with 100 form pages); print untrusted PDFs in a separate worker process.
+- The first page with form fields of a document runs one longer engine call that copies every form page the call
+  prints (about 77 ms on x64 and 95 ms on x86 for 500 form pages, as measured in a review); it holds the
+  process-wide lock and cannot be cancelled.
+- If reloading a flattened page fails, which is practically unreachable, the page is drawn with blank form
+  fields and status `Ok`.
 
 ### Verified
 

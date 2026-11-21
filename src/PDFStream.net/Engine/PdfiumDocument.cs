@@ -137,11 +137,23 @@ internal enum CopyRejection
 /// until the document is closed. One thing is still repeated per page: an attribute a page inherits as a direct
 /// value (a /Resources dictionary written inline on the /Pages node, for example) is cloned onto every copy, so
 /// its parsed size counts once per page with fields (see <see cref="DefaultCopyBudgetBytes"/>, which does not
-/// bound it); such dictionaries normally hold only a few references. Copies that share an object also share what
-/// flattening writes into it: two pages with one shared content array and one shared resource dictionary would
-/// each draw the other's fields, which the comparison of the second page catches whenever those fields leave ink
-/// (it then takes the fallback). XFA-only forms have no fields of this kind and still print only their page
-/// content; the bundled PDFium is built without XFA.
+/// bound it); such dictionaries normally hold only a few references. XFA-only forms have no fields of this kind
+/// and still print only their page content; the bundled PDFium is built without XFA.
+/// </para>
+/// <para>
+/// KNOWN LIMITATION (three or more form pages that share one indirect /Contents array). The copies, made in one
+/// import call, share the cloned content array, and PDFium's flatten edits that array in place and names its
+/// drawing after the first free /FFTn in the shared /XObject dictionary. So the second page's copy also draws
+/// the first page's field. The pixel comparison catches that first contaminated copy (when the fields leave ink)
+/// and the page takes the in-place fallback, but that flattens the page's ORIGINAL content array, which is
+/// shared with the other original pages: from the third page on, the original and the copy differ as well, so
+/// those pages also go in place and keep the drawing of the second page. The result is that later pages also
+/// print the fields of earlier pages (page 3 shows page 2's field, page 4 shows the fields of pages 2 and 3),
+/// with status Ok. It needs a PDF whose form pages share one indirect /Contents array and one indirect
+/// /Resources dictionary, which is rare. Fixing it needs private objects per copy (one import call per page),
+/// which brings back the memory growth the single call avoids, and PDFium has no call to unshare the array. It is
+/// pinned by a characterization test (the one with Known_limitation in its name in FormFieldRenderingTests):
+/// whoever fixes this must change that test and the limitation text in the documentation.
 /// </para>
 /// </remarks>
 internal sealed class PdfiumDocument : IPdfDocument
@@ -484,6 +496,11 @@ internal sealed class PdfiumDocument : IPdfDocument
                     // and parsed only once, as before form fields were handled.
                     (int drawFrom, PagePreparation how, CopyRejection why) = TryPrepareForPrinting(document, pageIndex, page);
                     PagePrepared?.Invoke(pageIndex, how, why);
+                    // If this reload fails (the flattened page or copy cannot be loaded again), the unflattened
+                    // page loaded above is drawn: its form fields stay blank and the print still reports Ok.
+                    // That is accepted: it is practically unreachable, because the same index was loaded
+                    // moments ago under the same lock, and a blank-fields page is what printing did before form
+                    // fields were handled at all, so preparing a page never makes a print fail.
                     IntPtr prepared = drawFrom == DrawAsItIs ? IntPtr.Zero : PdfiumNative.FPDF_LoadPage(document, drawFrom);
                     if (prepared != IntPtr.Zero)
                     {
@@ -813,8 +830,10 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// <remarks>
     /// The copy holds its own copies of the objects the page uses. That is what keeps inherited resources, but
     /// anything whose meaning depends on which object it is, rather than on what it contains, changes: optional
-    /// content is the known case. Comparing the two drawings catches every such difference that shows, without
-    /// having to know its cause, and costs two small renders, once, for pages with form fields only.
+    /// content is the known case. Comparing the two drawings catches such a difference that shows when the page is
+    /// compared, without having to know its cause, and costs two small renders, once, for pages with form fields
+    /// only. It does not catch everything: see the known limitation about pages that share one content array in
+    /// the remarks of the class.
     /// </remarks>
     /// <param name="document">The document.</param>
     /// <param name="page">The page, loaded.</param>

@@ -146,7 +146,7 @@ On one Windows 11 x64 machine:
 
 - The full test suite for `net8.0-windows` and `net10.0-windows`, in a 64-bit and in a 32-bit (x86) process,
   including real prints to *Microsoft Print to PDF* whose output is checked page by page for ink. Last run on
-  2026-11-21, on the current code: all tests passed, none skipped.
+  2026-11-21, at commit c182b0c: all tests passed, none skipped.
 - The package, from a separate app outside this repository. On 2026-11-20, before the package was renamed to
   `PDFStream.net`: built and published for win-x64, win-x86 and win-arm64 on both frameworks, the right
   `pdfium.dll` lands next to the app, and the x64 and x86 builds printed a two-page PDF to *Microsoft Print to

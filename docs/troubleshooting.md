@@ -252,6 +252,20 @@ PDFStream.net prints filled-in form fields (see [usage.md](usage.md#form-fields)
   "Microsoft Print to PDF" from a viewer, or with the "flatten" option of the tool that filled it) and print
   that file.
 
+### A form page shows field values from another page
+
+Known limitation. In a PDF with three or more form pages that share one indirect `/Contents` array (and one
+indirect `/Resources` dictionary), a later page can also print the fields of earlier pages, and the status is
+still `Ok`: the third page also shows the second page's field values, the fourth page also shows those of the
+second and third. The check PDFStream.net makes before it uses a page copy catches the first affected page, but
+the fallback that then draws the fields into the page itself edits the same shared array. See
+[usage.md](usage.md#form-fields). Workarounds:
+
+- Flatten the PDF with a PDF tool before printing (print the filled form to a plain PDF with "Microsoft Print
+  to PDF" from a viewer, or use the "flatten" option of the tool that filled it) and print that file.
+- Or print the pages as separate documents: split the PDF into one file per form page and print each file with
+  its own call.
+
 ### A PDF marked "printing not allowed" printed anyway
 
 That is by design: owner permissions such as "printing not allowed" are ignored, as server automation

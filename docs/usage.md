@@ -199,7 +199,10 @@ static bool WaitUntilWritten(string path, TimeSpan timeout)
 ## Cancelling
 
 Pass a `CancellationToken`. It is checked before the PDF is opened, after it is opened, and between pages,
-never in the middle of a page. A job stopped between pages ends normally, so the pages already sent print and
+never in the middle of a page. The first page with form fields of a document is the exception that runs
+longer: it first finds and copies every form page the call prints (see [Form fields](#form-fields)), which is
+one engine call that cannot be interrupted (about 77 ms on x64 and 95 ms on x86 for 500 form pages, as measured in
+a review). A job stopped between pages ends normally, so the pages already sent print and
 `PagesPrinted` counts them exactly; the status is `Cancelled`.
 
 ## Security and limits
@@ -218,12 +221,14 @@ Read this before you print PDFs that come from outside your organisation (upload
   runs inside the printer driver. A driver that hangs while a page is drawn keeps that lock, and every other
   print in the same process waits behind it. A worker process per printer (or per job) contains this as well.
 - **A PDF can be built to make form printing use a lot of memory.** A value that pages inherit from the PDF's
-  page tree, written inline instead of as a separate object, is copied once for every page with fields. In a test, a 1.2 MB file whose 100 pages with fields inherit an inline list of 100,000
-  numbers made memory grow by about 600 MB while its pages were drawn. Ordinary PDFs inherit only a few
+  page tree, written inline instead of as a separate object, is copied once for every page with fields. In a
+  test, a 1.2 MB file whose 100 pages with fields inherit an inline list of 100,000 numbers made memory grow by
+  about 600 MB while its pages were drawn. Ordinary PDFs inherit only a few
   references this way. A worker process (above) contains such files as well.
 - **Cancellation is checked between pages only.** The token is checked before the PDF is opened, after it is
-  opened and between pages. It cannot interrupt a page that is being drawn, a driver that hangs, or the opening
-  of a very large PDF.
+  opened and between pages. It cannot interrupt a page that is being drawn, a driver that hangs, the opening
+  of a very large PDF, or the first page with form fields of a document, whose one engine call copies every
+  form page of the job (see [Several threads at once](#several-threads-at-once)).
 - **Security fixes in PDFium** reach PDFStream.net through updates of the `bblanchon.PDFium.Win32` package it
   depends on. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
@@ -232,7 +237,10 @@ Read this before you print PDFs that come from outside your organisation (upload
 The calls are safe from several threads at once. PDFium, the engine that reads and draws the PDF, is not
 thread-safe, so every call into it is made under one lock for the whole process. The lock is held for one
 engine call at a time (opening the PDF, measuring or drawing one page, closing it), not for a whole job, so
-concurrent jobs run side by side and interleave at page level. Each call is still its own print job with its
+concurrent jobs run side by side and interleave at page level. The first page with form fields of a document
+is the exception: it runs one longer engine call that finds and copies every form page the job prints (about
+77 ms on x64 and 95 ms on x86 for 500 form pages, as measured in a review), holds the lock for all of it, and cannot be
+interrupted by cancellation or by another job. Each call is still its own print job with its
 own pages in order; each simply takes longer than it would alone. If you print from many threads (a busy web
 server, for example), a queue that prints one document at a time gives steadier timing.
 
@@ -287,6 +295,16 @@ paper. Your file or byte array is never changed, and pages without fields are dr
   PDFStream.net depends on (160.0.8165, from the `bblanchon.PDFium.Win32` package). If your application uses another
   `pdfium.dll` in which that function is missing or fails, the fields are drawn into each page itself instead:
   they still print, but a page that takes fonts or images from the PDF's page tree prints without them.
+- **Known limitation: pages that share one content array.** In a PDF with three or more form pages that share
+  one indirect `/Contents` array (and one indirect `/Resources` dictionary), later pages can also show the fields
+  of earlier pages, and the print still reports `Ok`. For example, the third page also prints the second page's
+  field and the fourth page also prints the fields of the second and third. The check described above catches
+  the first page affected, but the fallback then draws the fields into the page itself, which edits the shared
+  array again. Some generators write identical pages this way; most PDFs are not built like this. Giving
+  every page its own private copy would bring back the memory growth described above, so this is accepted for now.
+  If your PDFs look like this, flatten them with a PDF tool before printing (see
+  [troubleshooting.md](troubleshooting.md#a-form-page-shows-field-values-from-another-page)) or print the
+  pages as separate documents.
 - **Known limitation.** A page that has form fields *and* takes its fonts or images from the PDF's page tree
   instead of carrying them itself, *and* whose copy cannot be used, can print without those fonts or images
   (the fields are then drawn into the page itself, which hides what it takes from the page tree). The copy

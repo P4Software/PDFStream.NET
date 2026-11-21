@@ -51,3 +51,15 @@ it ends that whole process. This and the other limits (one hung printer driver s
 process; cancellation is checked between pages only) are explained, with what to do about them, in
 [Security and limits](docs/usage.md#security-and-limits). A PDF that crashes or hangs PDFStream.net is still worth
 reporting as described above.
+
+Two more limits are known and accepted for the first release:
+
+- **A crafted PDF can make form printing use a lot of memory.** A value that pages inherit from the page tree,
+  written inline, is copied once for every page with fields, and the copy budget does not bound it. In a
+  measurement, a 1.2 MB PDF with 100 form pages grew memory by about 600 MB. Print PDFs you do not trust in a
+  separate worker process, so that a file like this costs one job and not your service.
+- **Pages that share one content array can show each other's form fields.** In a PDF with three or more form
+  pages that share one indirect `/Contents` array, later pages can also print the fields of earlier pages
+  (status `Ok`). This is a correctness limit, not a way to read data you could not already read: all pages are
+  in the file you print. If a printout must never carry another page's values, flatten such PDFs first. See
+  [Form fields](docs/usage.md#form-fields).
