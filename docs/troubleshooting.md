@@ -238,6 +238,9 @@ PDFStream prints filled-in form fields (see [usage.md](usage.md#form-fields)). I
   from a viewer that shows it correctly) and print that file.
 - **A value shows in one format on screen and another on paper.** Form scripts do not run, so a value that a
   script formats (dates, currency) prints as it is stored in the PDF.
+- **Every field of one page is blank, but the rest of that page prints.** PDFStream could not prepare that
+  page's fields (the PDF engine refused to copy the page or to draw its fields into the copy), so it printed the
+  page without them instead of failing the print. If you can share the PDF, open an issue with it.
 
 ### A PDF marked "printing not allowed" printed anyway
 

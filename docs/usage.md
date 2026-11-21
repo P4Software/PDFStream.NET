@@ -242,9 +242,11 @@ refused with a message naming the cause. A printer that only *reports* Offline i
 
 Filled-in form fields print: text fields, checkboxes, radio buttons, lists and the other fields of an
 ordinary PDF form (an AcroForm), with the values they hold. PDFium, the PDF engine, never draws form fields
-when it draws a page, so before a page with fields is drawn for the first time, PDFStream makes the fields part
-of the page, exactly as they print, in its own copy of the PDF in memory. Your file or byte array is never
-changed, and pages without fields are drawn untouched.
+when it draws a page, so before a page with fields is drawn for the first time, PDFStream makes a copy of that
+page in its own copy of the PDF in memory, draws the fields into the copy exactly as they print, and prints the
+copy instead of the page. The copy keeps everything the page shows, including fonts, images and page sizes it
+takes from elsewhere in the PDF. Your file or byte array is never changed, and pages without fields are drawn
+untouched.
 
 - **Fields print as they print from a PDF viewer.** A field that is not marked for printing (a "screen only"
   field, such as an instruction or a button) stays off the paper.
@@ -259,3 +261,6 @@ changed, and pages without fields are drawn untouched.
   prints its ordinary fields. Save or print such a form to a plain PDF first.
 - If a page's fields cannot be prepared for any reason, the page still prints, without its fields, as earlier
   versions printed it.
+- **A page with fields costs a little more.** It is read once more, and until the print call returns its copy
+  holds a second copy of what the page uses (its fonts and images, for example) in memory. Pages without
+  fields cost nothing extra.

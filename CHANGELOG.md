@@ -24,9 +24,11 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   cause. A printer that only reports Offline is not refused.
 - Filled-in form fields (text fields, checkboxes and the other fields of an ordinary PDF form) print on both
   print paths. PDFium never draws form fields when it draws a page, so before a page with fields is first
-  drawn PDFStream flattens them, as they print, into its own in-memory copy of the PDF; fields not marked for
-  printing stay off the paper, and pages without fields are untouched. XFA-only forms are not supported (the
-  bundled PDFium is built without XFA).
+  drawn PDFStream copies that page inside its own in-memory copy of the PDF, with everything the page inherits
+  from the PDF's page tree (its fonts, images and page boxes included), flattens the fields into the copy as
+  they print, and prints the copy in place of the page. Everything else on the page prints as before; fields
+  not marked for printing stay off the paper, and pages without fields are untouched. XFA-only forms are not
+  supported (the bundled PDFium is built without XFA).
 - Printing straight onto the printer's page as drawing commands, with a picture fallback (at most 300 dpi)
   for drivers that refuse that; each page is scaled and turned on its own. Copies are made by the driver when
   it can, otherwise by sending the document again in the same job.
