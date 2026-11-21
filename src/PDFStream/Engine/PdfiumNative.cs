@@ -37,7 +37,8 @@ internal static class PdfiumNative
     /// It does NOT draw form fields: PDFium's two page-drawing calls (<see cref="FPDF_RenderPage"/> and
     /// <see cref="FPDF_RenderPageBitmap"/>) never draw widget annotations, whatever the flags. Only the
     /// form-fill module's own drawing call (which draws only into a bitmap) or flattening the fields into the
-    /// page content does; <see cref="PdfiumDocument"/> flattens them into a copy of the page (see its remarks).
+    /// page content does; <see cref="PdfiumDocument"/> flattens them into a copy of the page, or into the page
+    /// itself (see its remarks).
     /// </summary>
     public const int RenderAnnotations = 0x01;
 

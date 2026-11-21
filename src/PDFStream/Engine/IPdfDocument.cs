@@ -38,8 +38,9 @@ internal interface IPdfDocument : IDisposable
     /// <param name="forPrinting"><see langword="true"/> to render as for paper: annotations
     /// marked "do not print" are left out and print-specific appearances are used. Form fields are drawn as
     /// they print whatever this says: the first time a page with fields is drawn, the PDFium implementation
-    /// makes a private copy of the page with its fields drawn into it, as they print, and draws that copy from
-    /// then on (see <see cref="PdfiumDocument"/>).</param>
+    /// draws the fields, as they print, into a private copy of the page (or, when the copy would not look
+    /// exactly like the page, into the page itself) and draws that from then on (see
+    /// <see cref="PdfiumDocument"/>).</param>
     /// <param name="quarterTurns">Extra clockwise rotation in quarter turns, 0 to 3, applied on top
     /// of the page's own rotation: 0 draws the page as it is displayed, 1 turns it 90 degrees
     /// clockwise, 2 turns it upside down and 3 turns it 90 degrees counter-clockwise.</param>

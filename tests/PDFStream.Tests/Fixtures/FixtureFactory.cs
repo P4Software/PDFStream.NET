@@ -2,6 +2,7 @@ using PdfSharp;
 using PdfSharp.Drawing;
 using PdfSharp.Fonts;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
 
 namespace PDFStream.Tests.Fixtures;
 
@@ -116,6 +117,28 @@ public static class FixtureFactory
             using var stream = new MemoryStream();
             document.Save(stream, false);
             return stream.ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Returns a copy of <paramref name="pdf"/> that needs <paramref name="userPassword"/> to open, encrypted with
+    /// AES-256 by PDFsharp (which reads the file and writes it again; it may restructure the page tree).
+    /// </summary>
+    /// <param name="pdf">Any PDF PDFsharp can open, for example one from <see cref="FormFixtureFactory"/>.</param>
+    /// <param name="userPassword">The password needed to open the result.</param>
+    /// <returns>The encrypted PDF as bytes.</returns>
+    public static byte[] Encrypt(byte[] pdf, string userPassword)
+    {
+        lock (Gate)
+        {
+            using var input = new MemoryStream(pdf);
+            using PdfDocument document = PdfReader.Open(input, PdfDocumentOpenMode.Modify);
+            document.SecuritySettings.UserPassword = userPassword;
+            document.SecurityHandler.SetEncryptionToV5();
+
+            using var output = new MemoryStream();
+            document.Save(output, false);
+            return output.ToArray();
         }
     }
 }

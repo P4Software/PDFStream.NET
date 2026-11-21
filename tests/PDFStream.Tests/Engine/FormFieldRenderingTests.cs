@@ -53,7 +53,7 @@ public sealed class FormFieldRenderingTests
     public static TheoryData<string, RenderPath> LayoutVariants()
     {
         var data = new TheoryData<string, RenderPath>();
-        foreach (string variant in new[] { "content and markup", "inherited page attributes", "page resources", "inherited resources", "crop box", "rotate 90", "everything at once" })
+        foreach (string variant in new[] { "content and markup", "inherited page attributes", "page resources", "inherited resources", "hidden layer", "crop box", "rotate 90", "everything at once" })
         {
             data.Add(variant, RenderPath.Bitmap);
             data.Add(variant, RenderPath.DeviceContext);
@@ -180,10 +180,10 @@ public sealed class FormFieldRenderingTests
         (int lost, int gained) = CompareInk(reference, ours);
 
         // Both fields lie inside the crop box, so all of their area must turn up as new ink.
-        int fieldArea = (int)((FormFixtureFactory.TextField.Width * FormFixtureFactory.TextField.Height) + (FormFixtureFactory.CheckBox.Width * FormFixtureFactory.CheckBox.Height));
+        int fieldArea = FieldArea;
         _output.WriteLine($"{variant}, {path}: page {ours.Width} x {ours.Height}, reference ink {Pixels.CountDark(reference)}, lost {lost}, gained {gained} (field area {fieldArea})");
         Assert.Equal(0, lost);
-        Assert.True(gained >= fieldArea * 0.9, $"Expected the fields to add about {fieldArea} dark pixels, found {gained}.");
+        AssertFieldsAddTheirAreaAndNothingElse(gained, fieldArea);
     }
 
     /// <summary>A page without any form field is drawn exactly, pixel for pixel, as PDFium alone draws it.</summary>
@@ -228,6 +228,65 @@ public sealed class FormFieldRenderingTests
     }
 
     /// <summary>
+    /// A form page with a layer the PDF switches off keeps that layer off the paper while its fields print. A
+    /// copy of the page would show the layer (its layer objects are copies, which the document's layer settings
+    /// do not name), so this page has its fields flattened into the page itself.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void A_layer_the_pdf_switches_off_stays_off_the_paper_on_a_form_page(RenderPath path)
+    {
+        byte[] pdf = FormFixtureFactory.Create(new FormFixtureOptions { WithPageContent = true, WithResourceMarks = true, WithHiddenLayer = true });
+        Rectangle hidden = FormFixtureFactory.HiddenLayerMark.ToInnerPixels(Dpi);
+
+        using IPdfDocument document = Load(pdf);
+        using Bitmap ours = Render(document, path);
+        using Bitmap reference = Reference(pdf, path, ours.Size);
+
+        Assert.Equal(0, Pixels.CountDarkIn(reference, hidden));
+        int darkInHiddenLayer = Pixels.CountDarkIn(ours, hidden);
+        _output.WriteLine($"Dark pixels in the switched-off layer's square: {darkInHiddenLayer}");
+        Assert.Equal(0, darkInHiddenLayer);
+        AssertAllInked(ours, ResourceMarksAndFields("own"));
+
+        (int lost, int gained) = CompareInk(reference, ours);
+        _output.WriteLine($"{path}: lost {lost}, gained {gained}");
+        Assert.Equal(0, lost);
+        AssertFieldsAddTheirAreaAndNothingElse(gained, FieldArea);
+    }
+
+    /// <summary>
+    /// A password-protected (AES-256) form PDF prints its fields and everything else on the page, the same as
+    /// plain PDFium draws the page plus the fields. PDFsharp, which encrypts the fixture, writes the inherited
+    /// attributes onto the page (and adds a transparency group), so this covers the copy of an encrypted page,
+    /// not inheritance.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void A_password_protected_form_page_prints_its_fields_and_everything_else(RenderPath path)
+    {
+        const string Password = "secret";
+        byte[] pdf = FixtureFactory.Encrypt(FormFixtureFactory.Create(Variant("inherited resources")), Password);
+        Assert.Equal(PdfLoadStatus.PasswordRequired, _engine.TryLoad(pdf, null, out _));
+        Assert.Equal(PdfLoadStatus.Ok, _engine.TryLoad(pdf, Password, out IPdfDocument? document));
+
+        using (document)
+        using (Bitmap ours = Render(document!, path))
+        using (Bitmap reference = path == RenderPath.Bitmap
+            ? RawPdfium.RenderBitmap(pdf, ours.Width, ours.Height, password: Password)
+            : RawPdfium.RenderOnDeviceContext(pdf, ours.Width, ours.Height, password: Password))
+        {
+            AssertAllInked(ours, ResourceMarksAndFields("encrypted"));
+            (int lost, int gained) = CompareInk(reference, ours);
+            _output.WriteLine($"{path}: lost {lost}, gained {gained}");
+            Assert.Equal(0, lost);
+            AssertFieldsAddTheirAreaAndNothingElse(gained, FieldArea);
+        }
+    }
+
+    /// <summary>
     /// In a document whose second page is a form page (inheriting its attributes and resources) and whose first
     /// page is a plain page of another size, each page index keeps drawing its own page, in any order and again:
     /// the plain page exactly as PDFium draws it, the form page with its fields and everything else it draws.
@@ -260,6 +319,7 @@ public sealed class FormFieldRenderingTests
         (int lost, int gained) = CompareInk(formReference, form);
         _output.WriteLine($"Form page, {path}: lost {lost}, gained {gained}");
         Assert.Equal(0, lost);
+        AssertFieldsAddTheirAreaAndNothingElse(gained, FieldArea);
         AssertAllInked(form, ResourceMarksAndFields("inherited"));
         AssertSamePixels(form, formAgain);
 
@@ -607,6 +667,7 @@ public sealed class FormFieldRenderingTests
         "inherited page attributes" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, InheritPageAttributes = true },
         "page resources" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithResourceMarks = true },
         "inherited resources" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithResourceMarks = true, InheritPageAttributes = true },
+        "hidden layer" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithResourceMarks = true, WithHiddenLayer = true },
         "crop box" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithCropBox = true },
         "rotate 90" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, Rotate = 90 },
         "everything at once" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithResourceMarks = true, InheritPageAttributes = true, WithCropBox = true, Rotate = 90 },
@@ -646,6 +707,20 @@ public sealed class FormFieldRenderingTests
         }
 
         return target;
+    }
+
+    /// <summary>The area, in pixels at <see cref="Dpi"/>, of the two printable fields (the text field and the checkbox).</summary>
+    private static int FieldArea => (int)((FormFixtureFactory.TextField.Width * FormFixtureFactory.TextField.Height) + (FormFixtureFactory.CheckBox.Width * FormFixtureFactory.CheckBox.Height));
+
+    /// <summary>
+    /// Fails unless the new ink is about the area of the fields: at least 90% of it (the fields are drawn) and at
+    /// most 1% more (nothing else is drawn that plain PDFium does not draw, such as a layer the PDF switches off;
+    /// the margin covers anti-aliased field edges).
+    /// </summary>
+    private static void AssertFieldsAddTheirAreaAndNothingElse(int gained, int fieldArea)
+    {
+        Assert.True(gained >= fieldArea * 0.9, $"Expected the fields to add about {fieldArea} dark pixels, found {gained}.");
+        Assert.True(gained <= fieldArea * 1.01, $"Expected the fields to add about {fieldArea} dark pixels and nothing else, found {gained}: something not drawn by PDFium alone was added.");
     }
 
     /// <summary>The reference picture of a page: plain PDFium on the same path, at the same pixel size.</summary>

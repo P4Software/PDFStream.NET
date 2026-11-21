@@ -10,7 +10,7 @@ internal sealed class PdfiumEngine : IPdfEngine
     private readonly PageCopier? _copyPage;
 
     /// <summary>Creates the engine.</summary>
-    /// <param name="flattenPage">How the documents it opens flatten the copy of a page with form fields;
+    /// <param name="flattenPage">How the documents it opens flatten a page with form fields (or its copy);
     /// <see langword="null"/> (the default, and what PDFStream uses) means PDFium's own <c>FPDFPage_Flatten</c>.
     /// Tests pass one that fails, to show that a page that cannot be flattened still prints.</param>
     /// <param name="copyPage">How the documents it opens copy a page with form fields before flattening it;

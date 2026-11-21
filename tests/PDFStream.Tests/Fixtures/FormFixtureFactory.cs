@@ -85,6 +85,14 @@ public sealed record FormFixtureOptions
     /// carries all its own attributes, so it inherits nothing from the /Pages node.
     /// </summary>
     public bool WithLeadingPlainPage { get; init; }
+
+    /// <summary>
+    /// When <see langword="true"/>, the page content also draws a black square (<see cref="FormFixtureFactory.HiddenLayerMark"/>)
+    /// inside an optional-content layer that the document's layer settings switch off (/OCProperties /D /OFF),
+    /// so a correct rendering leaves that square white. The layer is named through the page's /Resources
+    /// (/Properties), inherited with the rest under <see cref="InheritPageAttributes"/>.
+    /// </summary>
+    public bool WithHiddenLayer { get; init; }
 }
 
 /// <summary>
@@ -190,6 +198,9 @@ public static class FormFixtureFactory
     /// <summary>The black square on the extra first page, in that page's own coordinates (only with <see cref="FormFixtureOptions.WithLeadingPlainPage"/>).</summary>
     public static readonly PdfRect LeadingPageMark = new(20, 20, 80, 80);
 
+    /// <summary>The square drawn in the switched-off layer, which must stay white (only with <see cref="FormFixtureOptions.WithHiddenLayer"/>).</summary>
+    public static readonly PdfRect HiddenLayerMark = new(240, 200, 290, 240);
+
     /// <summary>Builds the PDF described by <paramref name="options"/> (the defaults when it is <see langword="null"/>).</summary>
     /// <returns>The complete PDF file as bytes.</returns>
     public static byte[] Create(FormFixtureOptions? options = null)
@@ -203,7 +214,8 @@ public static class FormFixtureFactory
         string rotate = o.Rotate != 0 ? FormattableString.Invariant($" /Rotate {o.Rotate}") : string.Empty;
         string fonts = "/F1 16 0 R" + (o.WithResourceMarks ? " /F3 19 0 R" : string.Empty);
         string xObjects = o.WithResourceMarks ? " /XObject << /X1 17 0 R /Im1 18 0 R >>" : string.Empty;
-        string resources = " /Resources << /Font << " + fonts + " >>" + xObjects + " >>";
+        string properties = o.WithHiddenLayer ? " /Properties << /MC0 23 0 R >>" : string.Empty;
+        string resources = " /Resources << /Font << " + fonts + " >>" + xObjects + properties + " >>";
         string pageAttributes = mediaBox + cropBox + rotate + resources;
 
         var annotations = new List<string>();
@@ -233,10 +245,17 @@ public static class FormFixtureFactory
             content.Append(FormattableString.Invariant($"BT /F3 {ResourceFontGlyph.Height} Tf 0 0 0 rg {ResourceFontGlyph.Left} {ResourceFontGlyph.Bottom} Td (A) Tj ET\n"));
         }
 
+        if (o.WithHiddenLayer)
+        {
+            // Marked content tied to the layer /MC0 names in the page's /Properties; the layer is switched off.
+            content.Append(FormattableString.Invariant($"/OC /MC0 BDC 0 0 0 rg {HiddenLayerMark.Left} {HiddenLayerMark.Bottom} {HiddenLayerMark.Width} {HiddenLayerMark.Height} re f EMC\n"));
+        }
+
         // Fixed object numbers keep the cross-references readable; objects a variant does not use stay in the
         // file unreferenced, which is valid PDF and invisible to a reader.
-        var objects = new string[23];
-        objects[1] = "<< /Type /Catalog /Pages 2 0 R" + (acroForm ? " /AcroForm 3 0 R" : string.Empty) + " >>";
+        var objects = new string[24];
+        string layers = o.WithHiddenLayer ? " /OCProperties << /OCGs [23 0 R] /D << /OFF [23 0 R] >> >>" : string.Empty;
+        objects[1] = "<< /Type /Catalog /Pages 2 0 R" + (acroForm ? " /AcroForm 3 0 R" : string.Empty) + layers + " >>";
         string kids = o.WithLeadingPlainPage ? "/Kids [21 0 R 4 0 R] /Count 2" : "/Kids [4 0 R] /Count 1";
         objects[2] = "<< /Type /Pages " + kids + (o.InheritPageAttributes ? " " + pageAttributes : string.Empty) + " >>";
         objects[3] = "<< /Fields [6 0 R 8 0 R 11 0 R]" + (o.NeedAppearances ? " /NeedAppearances true" : string.Empty)
@@ -285,6 +304,9 @@ public static class FormFixtureFactory
         objects[21] = "<< /Type /Page /Parent 2 0 R /MediaBox " + leadingBox.ToPdfArray() + " /CropBox " + leadingBox.ToPdfArray()
             + " /Rotate 0 /Resources << >> /Contents 22 0 R >>";
         objects[22] = Stream(string.Empty, FormattableString.Invariant($"0 0 0 rg {LeadingPageMark.Left} {LeadingPageMark.Bottom} {LeadingPageMark.Width} {LeadingPageMark.Height} re f"));
+
+        // The optional-content group behind WithHiddenLayer, listed as off in the catalog's layer settings.
+        objects[23] = "<< /Type /OCG /Name (Hidden) >>";
 
         return Assemble(objects);
     }
