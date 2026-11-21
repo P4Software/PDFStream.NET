@@ -85,14 +85,14 @@ public sealed class PrintResultTests
         Assert.Throws<ArgumentException>(() => PrintResult.Failure(PrintStatus.Ok));
     }
 
-    /// <summary>The options default to what the design promises: one copy, colour, fit to page, printer's own duplex.</summary>
+    /// <summary>The options default to what the design promises: one copy, the printer's own colour and duplex, fit to page.</summary>
     [Fact]
     public void Options_have_the_documented_defaults()
     {
         var options = new PrintOptions();
 
         Assert.Equal(1, options.Copies);
-        Assert.True(options.Color);
+        Assert.Null(options.Color);
         Assert.Equal(ScaleMode.FitToPage, options.Scale);
         Assert.Equal(DuplexMode.PrinterDefault, options.Duplex);
         Assert.Null(options.Pages);

@@ -209,12 +209,22 @@ internal static class PrinterLocator
     };
 
     /// <summary>Copies the options onto an opened printer's settings.</summary>
-    private static PrintStatus Apply(PrintOptions options, PrinterSettings settings, string? outputFile, out string message)
+    /// <param name="options">The caller's print options, already checked by <see cref="AreOptionsUsable"/>.</param>
+    /// <param name="settings">Settings for the installed printer; changed in place.</param>
+    /// <param name="outputFile">The full output file path, or <see langword="null"/> to print to the printer's port.</param>
+    /// <param name="message">The plain-language text for the result.</param>
+    /// <returns><see cref="PrintStatus.Ok"/>, or the status of the option the printer cannot honour.</returns>
+    internal static PrintStatus Apply(PrintOptions options, PrinterSettings settings, string? outputFile, out string message)
     {
         message = Messages.Ok();
 
         settings.Copies = (short)options.Copies;
-        settings.DefaultPageSettings.Color = options.Color;
+
+        // No colour asked for: leave the printer's own setting alone, so it is not frozen to one choice.
+        if (options.Color is bool color)
+        {
+            settings.DefaultPageSettings.Color = color;
+        }
 
         // PrinterDefault changes nothing. Plain single-sided printing needs no support from the
         // printer, so it is applied only where it can matter; a double-sided request that the

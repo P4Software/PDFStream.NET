@@ -222,17 +222,68 @@ public sealed class PrinterLocatorTests
         Assert.False(settings.PrintToFile);
     }
 
-    /// <summary>Colour is on by default and is applied as colour.</summary>
+    /// <summary>
+    /// Leaving Color out keeps the printer's own colour setting: the settings come back with the colour the
+    /// driver reports for this printer, exactly as a fresh set of settings for it has.
+    /// </summary>
     [Fact]
-    public void Color_defaults_to_color()
+    public void Color_left_out_keeps_the_printers_own_default()
     {
         RequirePdfPrinter();
+        bool driverDefault = new PrinterSettings { PrinterName = PdfPrinter }.DefaultPageSettings.Color;
 
         PrintStatus status = PrinterLocator.TryCreateSettings(new PrintOptions { PrinterName = PdfPrinter }, out PrinterSettings? settings);
 
         Assert.Equal(PrintStatus.Ok, status);
         Assert.NotNull(settings);
         Assert.Equal(1, settings.Copies);
+        Assert.Equal(driverDefault, settings.DefaultPageSettings.Color);
+    }
+
+    /// <summary>
+    /// Leaving Color out never touches the colour on the settings. Real printer settings are first set to
+    /// black and white, standing in for a printer whose own default is black and white (Microsoft Print to PDF
+    /// defaults to colour, so the driver alone cannot show this); applying options without a colour must leave
+    /// them black and white rather than switch them to colour.
+    /// </summary>
+    [Fact]
+    public void Color_left_out_does_not_touch_the_colour_on_the_printer_settings()
+    {
+        RequirePdfPrinter();
+        var settings = new PrinterSettings { PrinterName = PdfPrinter };
+        settings.DefaultPageSettings.Color = false;
+
+        PrintStatus status = PrinterLocator.Apply(new PrintOptions { PrinterName = PdfPrinter }, settings, outputFile: null, out _);
+
+        Assert.Equal(PrintStatus.Ok, status);
+        Assert.False(settings.DefaultPageSettings.Color);
+    }
+
+    /// <summary>Color = false forces black and white on settings that were set to colour.</summary>
+    [Fact]
+    public void Color_false_forces_black_and_white()
+    {
+        RequirePdfPrinter();
+        var settings = new PrinterSettings { PrinterName = PdfPrinter };
+        settings.DefaultPageSettings.Color = true;
+
+        PrintStatus status = PrinterLocator.Apply(new PrintOptions { PrinterName = PdfPrinter, Color = false }, settings, outputFile: null, out _);
+
+        Assert.Equal(PrintStatus.Ok, status);
+        Assert.False(settings.DefaultPageSettings.Color);
+    }
+
+    /// <summary>Color = true forces colour on settings that were set to black and white.</summary>
+    [Fact]
+    public void Color_true_forces_colour()
+    {
+        RequirePdfPrinter();
+        var settings = new PrinterSettings { PrinterName = PdfPrinter };
+        settings.DefaultPageSettings.Color = false;
+
+        PrintStatus status = PrinterLocator.Apply(new PrintOptions { PrinterName = PdfPrinter, Color = true }, settings, outputFile: null, out _);
+
+        Assert.Equal(PrintStatus.Ok, status);
         Assert.True(settings.DefaultPageSettings.Color);
     }
 

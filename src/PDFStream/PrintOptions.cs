@@ -37,8 +37,16 @@ public sealed class PrintOptions
     /// <summary>Single-sided or double-sided printing. The default leaves the printer's own setting.</summary>
     public DuplexMode Duplex { get; init; }
 
-    /// <summary><see langword="true"/> (the default) prints in colour; <see langword="false"/> prints in black and white.</summary>
-    public bool Color { get; init; } = true;
+    /// <summary>
+    /// Colour or black and white. <see langword="null"/> (the default) keeps the printer's own colour setting,
+    /// <see langword="true"/> asks the printer for colour and <see langword="false"/> for black and white.
+    /// </summary>
+    /// <remarks>
+    /// The default changes nothing on purpose: a program that sets no colour gets what the printer is set up to
+    /// do, as it would printing from any other application. A printer that cannot print in colour prints in
+    /// black and white whatever is asked.
+    /// </remarks>
+    public bool? Color { get; init; }
 
     /// <summary>How pages are sized onto the paper. The default fits each page to the paper.</summary>
     public ScaleMode Scale { get; init; } = ScaleMode.FitToPage;
