@@ -248,10 +248,11 @@ changed, and pages without fields are drawn untouched.
 
 - **Fields print as they print from a PDF viewer.** A field that is not marked for printing (a "screen only"
   field, such as an instruction or a button) stays off the paper.
-- **Values come from what the PDF stores.** Each field prints its stored appearance. When the PDF says its
-  appearances must be rebuilt (the form's `NeedAppearances` setting, which some form-filling tools set instead
-  of writing the appearance), PDFium rebuilds them from the field values first. No form scripts run, so a value
-  that a script would format (a date or currency format, for example) prints as it is stored.
+- **Values come from what the PDF stores.** Each field prints its stored appearance. A field that has a value
+  but no stored appearance, and every field of a form that says its appearances must be rebuilt (the form's
+  `NeedAppearances` setting, which some form-filling tools set instead of writing the appearance), gets an
+  appearance built by PDFium from its value first. No form scripts run, so a value that a script would format
+  (a date or currency format, for example) prints as it is stored.
 - **XFA forms are not supported.** The PDFium build PDFStream ships is built without XFA. A form made only of
   XFA (a "dynamic" form from Adobe LiveCycle or AEM Designer) has no ordinary fields to print, so only the page
   content prints, which for such forms is often a single "Please wait..." page. A form that carries both kinds

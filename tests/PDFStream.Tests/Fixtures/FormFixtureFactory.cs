@@ -30,6 +30,12 @@ public sealed record FormFixtureOptions
     public bool NeedAppearances { get; init; }
 
     /// <summary>
+    /// <see langword="true"/> (the default) gives the text field its stored appearance (a black box).
+    /// <see langword="false"/> leaves it with only its value, without the form saying /NeedAppearances.
+    /// </summary>
+    public bool TextFieldHasStoredAppearance { get; init; } = true;
+
+    /// <summary>
     /// When <see langword="true"/>, the page's MediaBox, CropBox, Resources and Rotate are written on the
     /// parent /Pages node instead of the page, so the page inherits them.
     /// </summary>
@@ -179,7 +185,7 @@ public static class FormFixtureFactory
 
         // /F 4 is the Print flag. The text field's value is HELLO; its stored appearance is a black box.
         objects[6] = "<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /V (HELLO) /DA (/Helv 24 Tf 0 g) /Rect " + TextField.ToPdfArray()
-            + " /F 4 /P 4 0 R" + (o.NeedAppearances ? string.Empty : " /AP << /N 7 0 R >>") + " >>";
+            + " /F 4 /P 4 0 R" + (o.NeedAppearances || !o.TextFieldHasStoredAppearance ? string.Empty : " /AP << /N 7 0 R >>") + " >>";
         objects[7] = BlackBox(TextField);
 
         // A checkbox in its "On" state: /AS picks the "On" appearance (a black square) out of the two.

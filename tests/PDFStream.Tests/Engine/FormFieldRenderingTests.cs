@@ -136,6 +136,24 @@ public sealed class FormFieldRenderingTests
     }
 
     /// <summary>
+    /// A field that holds a value but no stored appearance is drawn from its value even when the form does not
+    /// say /NeedAppearances: PDFium's form engine builds the missing appearance.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void Field_value_without_a_stored_appearance_is_drawn_even_when_the_form_does_not_ask_for_it(RenderPath path)
+    {
+        using IPdfDocument document = Load(FormFixtureFactory.Create(new FormFixtureOptions { TextFieldHasStoredAppearance = false }));
+        using Bitmap page = Render(document, path);
+
+        int dark = Pixels.CountDarkIn(page, FormFixtureFactory.TextField.ToInnerPixels(Dpi));
+        _output.WriteLine($"Dark pixels in the text field built from its value: {dark}");
+        Assert.True(dark > 100, $"Expected the field's value to be drawn, found {dark} dark pixels in the field.");
+        AssertInked(page, FormFixtureFactory.CheckBox, "the ticked checkbox");
+    }
+
+    /// <summary>
     /// Drawing the fields changes nothing else: the page keeps its size before and after a render, and every
     /// pixel PDFium draws for the page without its fields (page content, ordinary annotations with and without
     /// a stored appearance) is still dark, in the same place, while the fields add their own ink. Covers
