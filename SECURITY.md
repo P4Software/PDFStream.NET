@@ -60,6 +60,5 @@ Two more limits are known and accepted for the first release:
   separate worker process, so that a file like this costs one job and not your service.
 - **Pages that share one content array can show each other's form fields.** In a PDF with three or more form
   pages that share one indirect `/Contents` array, later pages can also print the fields of earlier pages
-  (status `Ok`). This is a correctness limit, not a way to read data you could not already read: all pages are
-  in the file you print. If a printout must never carry another page's values, flatten such PDFs first. See
+  (status `Ok`). If a printout must never carry another page's values, flatten such PDFs first. See
   [Form fields](docs/usage.md#form-fields).
