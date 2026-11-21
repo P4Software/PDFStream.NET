@@ -76,6 +76,8 @@ public static class SettingsFile
           "PrinterName": "",
 
           // PdfFile: the PDF to print. A path without a folder (like test.pdf) is looked for next to this program.
+          // Explorer's "Copy as path" adds quote marks around the path: the program removes them, but if the
+          // file then will not load, remove the doubled quote marks yourself ("C:/Docs/a.pdf", not ""C:/Docs/a.pdf"").
           "PdfFile": "test.pdf",
 
           // Copies: how many copies to print. A whole number, 1 or more.
@@ -122,13 +124,31 @@ public static class SettingsFile
         TestPrintSettings defaults = new();
         return new TestPrintSettings
         {
-            PrinterName = (read.PrinterName ?? defaults.PrinterName).Trim(),
-            PdfFile = (read.PdfFile ?? defaults.PdfFile).Trim(),
+            PrinterName = Unquote(read.PrinterName ?? defaults.PrinterName),
+            PdfFile = Unquote(read.PdfFile ?? defaults.PdfFile),
             Copies = read.Copies,
             Pages = (read.Pages ?? defaults.Pages).Trim(),
-            OutputFile = (read.OutputFile ?? defaults.OutputFile).Trim(),
+            OutputFile = Unquote(read.OutputFile ?? defaults.OutputFile),
             ReallyPrint = read.ReallyPrint,
         };
+    }
+
+    /// <summary>
+    /// Trims a text and removes ONE pair of matching surrounding quotes (double or single). Explorer's
+    /// "Copy as path" puts double quotes around a path, and people paste them into the file as they are;
+    /// a path that really starts with a quote character does not exist, so removing them is always safe.
+    /// </summary>
+    /// <param name="value">The text from the settings file.</param>
+    /// <returns>The text without whitespace around it and without one pair of surrounding quotes.</returns>
+    private static string Unquote(string value)
+    {
+        string text = value.Trim();
+        if (text.Length >= 2 && (text[0] == '"' || text[0] == '\'') && text[^1] == text[0])
+        {
+            text = text[1..^1].Trim();
+        }
+
+        return text;
     }
 
     /// <summary>Loads <c>settings.json</c> from the folder, creating the commented starter file first if it is missing.</summary>
@@ -166,7 +186,8 @@ public static class SettingsFile
             return new SettingsLoadResult(SettingsOutcome.Invalid, null,
                 $"I could not read your settings file at {path}.{where} " +
                 "Check that every text is in double quotes, that Copies is a plain number, that ReallyPrint is true or false without quotes, " +
-                "and that Windows paths use forward slashes or doubled backslashes. " +
+                "that Windows paths use forward slashes or doubled backslashes (a single backslash is not allowed), " +
+                "and that a path pasted from Explorer does not have extra quote marks around it (remove the doubled quotes). " +
                 "To start again, delete the file and run the program: it creates a fresh one.", path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

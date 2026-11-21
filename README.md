@@ -68,7 +68,7 @@ if (!result.Succeeded)
 `samples/PDFStream.TestPrint` is a small program you run by double-clicking `PDFStream.TestPrint.exe`
 (it needs the .NET 10 desktop runtime). On the first run it creates a commented `settings.json` next to
 itself and lists your printers. Fill in the printer name and a PDF, and run it again: by default it is a
-**dry run** that only checks everything and shows what it would send. Set `ReallyPrint` to `true` to print.
+**dry run** that only checks everything and shows what it would send. Set `ReallyPrint` to `true` to print. Paths copied with Explorer's "Copy as path" work even though they carry quote marks.
 It is also a short example of using the public API.
 
 ## Requirements

@@ -149,6 +149,65 @@ public class TestPrintTests
         Assert.Equal(absolute, TestPrintApp.ResolveNextToProgram(folder.Path, absolute));
     }
 
+    [Theory]
+    [InlineData("\\\"docs/a.pdf\\\"")]
+    [InlineData("'docs/a.pdf'")]
+    [InlineData("  \\\"docs/a.pdf\\\"  ")]
+    public void Quoted_pdf_path_is_unquoted_and_found(string jsonValue)
+    {
+        using ProgramFolder folder = new();
+        string expected = folder.CreateFile(Path.Combine("docs", "a.pdf"));
+        folder.WriteSettings($$"""{ "PrinterName": "Office Laser", "PdfFile": "{{jsonValue}}", "ReallyPrint": true }""");
+        FakeConsole io = new();
+        PrintSpy spy = new();
+
+        int exit = NewApp(io, folder, spy).Run();
+
+        Assert.Equal(0, exit);
+        Assert.Equal(1, spy.Calls);
+        Assert.Equal(Path.GetFullPath(expected), Path.GetFullPath(spy.Path!));
+        Assert.Contains("the PDF file was found", io.Text);
+    }
+
+    [Theory]
+    [InlineData("\\\"out.pdf\\\"")]
+    [InlineData("'out.pdf'")]
+    public void Quoted_output_file_is_unquoted(string jsonValue)
+    {
+        using ProgramFolder folder = new();
+        folder.CreateFile("test.pdf");
+        folder.WriteSettings($$"""{ "PrinterName": "Office Laser", "OutputFile": "{{jsonValue}}", "ReallyPrint": true }""");
+        PrintSpy spy = new();
+
+        NewApp(new FakeConsole(), folder, spy).Run();
+
+        Assert.Equal(Path.Combine(folder.Path, "out.pdf"), spy.Options!.OutputFile);
+    }
+
+    [Fact]
+    public void Quoted_printer_name_is_unquoted_and_only_one_pair_is_removed()
+    {
+        TestPrintSettings s = SettingsFile.Parse("""{ "PrinterName": "\"Office Laser\"", "PdfFile": "\"\"x.pdf\"\"", "OutputFile": "'a" }""");
+
+        Assert.Equal("Office Laser", s.PrinterName);
+        Assert.Equal("\"x.pdf\"", s.PdfFile); // one pair only; a leftover quote then shows up in the "not found" message
+        Assert.Equal("'a", s.OutputFile);      // quotes that do not match are left alone
+    }
+
+    [Fact]
+    public void Doubled_quotes_around_a_pasted_path_give_a_hint_about_the_quotes()
+    {
+        using ProgramFolder folder = new();
+        folder.WriteSettings("""{ "PdfFile": ""C:/Docs/a.pdf"" }""");
+        FakeConsole io = new();
+
+        int exit = NewApp(io, folder, new PrintSpy()).Run();
+
+        Assert.Equal(1, exit);
+        Assert.Contains("extra quote marks", io.Text);
+        Assert.Contains("single backslash", io.Text);
+    }
+
     [Fact]
     public void Missing_printer_gives_plain_message_and_list_of_installed_printers()
     {
