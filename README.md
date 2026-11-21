@@ -41,7 +41,7 @@ own warehouse software, and we are sharing it so nobody else has to pay for it.
 - **Plain-language results**: every failure comes back as a status and a message that says what went wrong
   and what to do next. It never throws managed exceptions for bad input or printer problems, such as a bad file
   or a paused printer. A crash inside the native PDF engine is the one thing no .NET library can turn into a
-  result; see [Security and limits](https://github.com/P4Software/PDFStream/blob/main/docs/usage.md#security-and-limits).
+  result; see [Security and limits](https://github.com/P4Software/PDFStream.net/blob/main/docs/usage.md#security-and-limits).
 - **No Adobe, nothing else to install**: the PDF engine (PDFium) comes with the package for x64, x86 and Arm64.
 - **No licence keys, watermarks, expiry dates, telemetry or network calls. Ever.**
 
@@ -56,7 +56,7 @@ dotnet add package PDFStream.net
 The package, the assembly and the namespace are all called `PDFStream.net`: in your code you write
 `using PDFStream.net;`.
 
-Until then, build the package from this repository (see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream/blob/main/CONTRIBUTING.md)) and add the
+Until then, build the package from this repository (see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.net/blob/main/CONTRIBUTING.md)) and add the
 folder it lands in as a package source.
 
 Requirements:
@@ -115,14 +115,14 @@ were sent.
 
 ## Documentation
 
-- [Usage guide](https://github.com/P4Software/PDFStream/blob/main/docs/usage.md): every option, every status and its message, copies, passwords, printing
+- [Usage guide](https://github.com/P4Software/PDFStream.net/blob/main/docs/usage.md): every option, every status and its message, copies, passwords, printing
   to a file, cancelling, threads.
-- [Services, scheduled tasks and IIS](https://github.com/P4Software/PDFStream/blob/main/docs/services-and-iis.md): the account must be able to see the
+- [Services, scheduled tasks and IIS](https://github.com/P4Software/PDFStream.net/blob/main/docs/services-and-iis.md): the account must be able to see the
   printer, and other things a program without a screen needs.
-- [Troubleshooting](https://github.com/P4Software/PDFStream/blob/main/docs/troubleshooting.md), organised by the message you got.
-- [Contributing](https://github.com/P4Software/PDFStream/blob/main/CONTRIBUTING.md): building, testing and the release checklist.
-- [Security](https://github.com/P4Software/PDFStream/blob/main/SECURITY.md): how to report a vulnerability privately; read
-  [Security and limits](https://github.com/P4Software/PDFStream/blob/main/docs/usage.md#security-and-limits) before printing PDFs you do not trust.
+- [Troubleshooting](https://github.com/P4Software/PDFStream.net/blob/main/docs/troubleshooting.md), organised by the message you got.
+- [Contributing](https://github.com/P4Software/PDFStream.net/blob/main/CONTRIBUTING.md): building, testing and the release checklist.
+- [Security](https://github.com/P4Software/PDFStream.net/blob/main/SECURITY.md): how to report a vulnerability privately; read
+  [Security and limits](https://github.com/P4Software/PDFStream.net/blob/main/docs/usage.md#security-and-limits) before printing PDFs you do not trust.
 
 ## Try it without writing code
 
@@ -154,7 +154,7 @@ Run on 2026-11-20 on one Windows 11 x64 machine:
   once more and used from separate win-x64 and win-x86 apps with `using PDFStream.net;`; each printed a
   two-page PDF to *Microsoft Print to PDF* and the right `pdfium.dll` landed next to the exe.
 
-Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream/blob/main/docs/release-checklist.md)): running on an Arm64
+Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream.net/blob/main/docs/release-checklist.md)): running on an Arm64
 PC, physical printers (duplex, network printers), and printing from a Windows service, a scheduled task
 or IIS.
 
@@ -172,15 +172,15 @@ or IIS.
 ## Get involved
 
 PDFStream.net is open source and built in the open. Bug reports, printer and driver reports and pull requests
-are welcome: open an [issue](https://github.com/P4Software/PDFStream/issues), especially about the printers,
-servers and PDF files that give you trouble today. See [CONTRIBUTING.md](https://github.com/P4Software/PDFStream/blob/main/CONTRIBUTING.md).
+are welcome: open an [issue](https://github.com/P4Software/PDFStream.net/issues), especially about the printers,
+servers and PDF files that give you trouble today. See [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.net/blob/main/CONTRIBUTING.md).
 
 ## Licence
 
-PDFStream.net is free and open source under the [MIT License](https://github.com/P4Software/PDFStream/blob/main/LICENSE), copyright 2026 P4 Software. Use it in
+PDFStream.net is free and open source under the [MIT License](https://github.com/P4Software/PDFStream.net/blob/main/LICENSE), copyright 2026 P4 Software. Use it in
 personal, commercial and closed-source projects, with no fees and no licence keys. The PDF engine and the
 libraries inside it keep their own permissive licences; see
-[THIRD-PARTY-NOTICES.md](https://github.com/P4Software/PDFStream/blob/main/THIRD-PARTY-NOTICES.md).
+[THIRD-PARTY-NOTICES.md](https://github.com/P4Software/PDFStream.net/blob/main/THIRD-PARTY-NOTICES.md).
 
 ---
 

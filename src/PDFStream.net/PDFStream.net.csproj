@@ -23,8 +23,8 @@
     <Title>PDFStream.net</Title>
     <PackageTags>pdf;print;printing;printer;silent;pdfium;windows;service</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageProjectUrl>https://github.com/P4Software/PDFStream</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/P4Software/PDFStream</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/P4Software/PDFStream.net</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/P4Software/PDFStream.net</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 

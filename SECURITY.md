@@ -5,9 +5,9 @@
 Please do not report security problems in public issues, discussions or pull requests.
 
 Report them privately through GitHub's private vulnerability reporting on this repository: open the
-**Security** tab of [P4Software/PDFStream](https://github.com/P4Software/PDFStream) and choose
+**Security** tab of [P4Software/PDFStream.net](https://github.com/P4Software/PDFStream.net) and choose
 **Report a vulnerability** (or go straight to
-[the reporting form](https://github.com/P4Software/PDFStream/security/advisories/new)). Only the maintainers and
+[the reporting form](https://github.com/P4Software/PDFStream.net/security/advisories/new)). Only the maintainers and
 you can see the report.
 
 Please include:

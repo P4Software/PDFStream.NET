@@ -1,7 +1,7 @@
 # Contributing to PDFStream.net
 
 Thank you for helping. Bug reports, printer and driver reports, documentation fixes and pull requests are all
-welcome. Please open an [issue](https://github.com/P4Software/PDFStream/issues) before a large change, so we
+welcome. Please open an [issue](https://github.com/P4Software/PDFStream.net/issues) before a large change, so we
 can agree on the approach first.
 
 ## What you need

@@ -169,7 +169,7 @@ jobs:
           if ($metadata.license.'#text' -ne 'MIT') { $problems += 'the licence expression is not MIT' }
           if ($metadata.readme -ne 'README.md') { $problems += 'the package readme is not README.md' }
           if ($metadata.authors -ne 'P4 Software') { $problems += 'the authors are not P4 Software' }
-          if ($metadata.repository.url -ne 'https://github.com/P4Software/PDFStream') { $problems += 'the repository URL is missing or wrong' }
+          if ($metadata.repository.url -ne 'https://github.com/P4Software/PDFStream.net') { $problems += 'the repository URL is missing or wrong' }
           foreach ($group in @($metadata.dependencies.group)) {
             if (@($group.dependency | ForEach-Object { $_.id }) -notcontains 'bblanchon.PDFium.Win32') { $problems += "$($group.targetFramework) does not depend on bblanchon.PDFium.Win32 (pdfium.dll)" }
           }
