@@ -46,8 +46,8 @@ internal delegate bool PageCopier(IntPtr document, int pageIndex, int insertAt);
 /// /Resources, creating an empty one when the page inherits them, and that empty dictionary hides the
 /// inherited fonts, images and XObjects, so the page content that uses them would disappear from the
 /// paper.</item>
-/// <item>The copy and the page are drawn small and compared. The copy is used only if it draws exactly the
-/// same pixels. It does not when something on the page depends on which object it refers to rather than on
+/// <item>The copy and the page are drawn small and compared (within a fixed pixel budget; a page too odd in size or
+/// shape to compare counts as not verified). The copy is used only if it draws exactly the same pixels. It does not when something on the page depends on which object it refers to rather than on
 /// what the object contains; optional content (layers) is the known case, because the document's layer
 /// settings name the page's layer objects, not the copy's, so a layer the PDF switches off would show on the
 /// copy. Such a page has its fields flattened into the page itself instead, as before the copy was introduced,
@@ -82,7 +82,13 @@ internal sealed class PdfiumDocument : IPdfDocument
     private const int ComparisonDpi = 72;
 
     /// <summary>The most pixels either comparison drawing may have; larger pages are compared at a lower resolution.</summary>
-    private const double ComparisonMaxPixels = 1_000_000;
+    internal const int ComparisonMaxPixels = 1_000_000;
+
+    /// <summary>The most pixels either side of a comparison drawing may have, whatever the shape of the page.</summary>
+    internal const int ComparisonMaxSide = 4096;
+
+    /// <summary>The most bytes one comparison drawing may take (four per pixel, within the pixel budget).</summary>
+    private const long ComparisonMaxBytes = 4L * ComparisonMaxPixels;
 
     private readonly PdfiumDocumentHandle _handle;
     private readonly PageFlattener _flattenPage;
@@ -118,6 +124,13 @@ internal sealed class PdfiumDocument : IPdfDocument
 
     /// <inheritdoc/>
     public int PageCount { get; }
+
+    /// <summary>
+    /// Test hook: called with the pixel width and height of every picture drawn to compare a form page with its
+    /// copy, just before it is drawn, while the PDFium lock is held. Lets a test check that the comparison never
+    /// draws more than its budget, whatever the page size. <see langword="null"/> (the default) in production.
+    /// </summary>
+    internal Action<int, int>? ComparisonRendered { get; set; }
 
     /// <inheritdoc/>
     public SizeF GetPageSizePoints(int pageIndex)
@@ -456,52 +469,124 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// content is the known case. Comparing the two drawings catches every such difference that shows, without
     /// having to know its cause, and costs two small renders, once, for pages with form fields only.
     /// </remarks>
-    private static bool CopyDrawsLikeThePage(IntPtr document, IntPtr page, int pageIndex, int copyIndex)
+    /// <returns>
+    /// <see langword="true"/> only when the comparison was made and the pictures are identical. Anything else (the
+    /// pictures differ, the page is too odd in size or shape to compare, or anything in the comparison fails)
+    /// is <see langword="false"/>, "could not verify", and never an exception: the caller then takes its safe
+    /// fallback.
+    /// </returns>
+    private bool CopyDrawsLikeThePage(IntPtr document, IntPtr page, int pageIndex, int copyIndex)
     {
-        if (PdfiumNative.FPDF_GetPageSizeByIndexF(document, pageIndex, out PdfiumNative.FsSizeF size) == 0)
-        {
-            return false;
-        }
-
-        // Points at ComparisonDpi, scaled down for very large pages so neither picture exceeds the pixel budget.
-        double scale = ComparisonDpi / 72.0;
-        double pixels = size.Width * scale * size.Height * scale;
-        if (pixels > ComparisonMaxPixels)
-        {
-            scale *= Math.Sqrt(ComparisonMaxPixels / pixels);
-        }
-
-        int width = Math.Max(1, (int)Math.Round(size.Width * scale));
-        int height = Math.Max(1, (int)Math.Round(size.Height * scale));
-        byte[] pagePixels = RenderForComparison(page, width, height);
-
-        IntPtr copy = PdfiumNative.FPDF_LoadPage(document, copyIndex);
-        if (copy == IntPtr.Zero)
-        {
-            return false;
-        }
-
         try
         {
-            return RenderForComparison(copy, width, height).AsSpan().SequenceEqual(pagePixels);
+            if (PdfiumNative.FPDF_GetPageSizeByIndexF(document, pageIndex, out PdfiumNative.FsSizeF size) == 0
+                || !TryGetComparisonSize(size.Width, size.Height, out int width, out int height))
+            {
+                return false;
+            }
+
+            ComparisonRendered?.Invoke(width, height);
+            byte[] pagePixels = RenderForComparison(page, width, height);
+
+            IntPtr copy = PdfiumNative.FPDF_LoadPage(document, copyIndex);
+            if (copy == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            try
+            {
+                ComparisonRendered?.Invoke(width, height);
+                return RenderForComparison(copy, width, height).AsSpan().SequenceEqual(pagePixels);
+            }
+            finally
+            {
+                PdfiumNative.FPDF_ClosePage(copy);
+            }
         }
-        finally
+        catch (Exception)
         {
-            PdfiumNative.FPDF_ClosePage(copy);
+            // The comparison is a safety check, not part of printing: if it cannot be made (no memory for the
+            // pictures, a page PDFium cannot draw, a size refused below), the copy is simply not verified.
+            return false;
         }
     }
 
+    /// <summary>
+    /// The pixel size at which a page of the given size is drawn for the comparison: one pixel per point
+    /// (<see cref="ComparisonDpi"/>), scaled down so that neither side exceeds <see cref="ComparisonMaxSide"/>
+    /// and the area stays within <see cref="ComparisonMaxPixels"/>.
+    /// </summary>
+    /// <remarks>
+    /// The page size comes from the PDF, which may be damaged or hostile: a MediaBox can be enormous in one
+    /// direction and tiny in the other, or not a usable number at all. So the size is checked first, all the
+    /// arithmetic is done in <see langword="double"/>, each side is clamped before the area, and the result is
+    /// rounded down so it can never round up over a limit. A page whose size is not finite and positive, or that
+    /// is so small or so long and thin that a side would be under one pixel, is not compared: its content would
+    /// collapse into a single row or column, which proves nothing.
+    /// </remarks>
+    /// <param name="widthPoints">The page width in points, as PDFium reports it.</param>
+    /// <param name="heightPoints">The page height in points, as PDFium reports it.</param>
+    /// <param name="width">The comparison picture's width in pixels, 1 to <see cref="ComparisonMaxSide"/>.</param>
+    /// <param name="height">The comparison picture's height in pixels, 1 to <see cref="ComparisonMaxSide"/>.</param>
+    /// <returns><see langword="false"/> when the page must not be compared.</returns>
+    internal static bool TryGetComparisonSize(float widthPoints, float heightPoints, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        if (!float.IsFinite(widthPoints) || !float.IsFinite(heightPoints) || widthPoints <= 0 || heightPoints <= 0)
+        {
+            return false;
+        }
+
+        double scale = ComparisonDpi / 72.0;
+        double targetWidth = widthPoints * scale;
+        double targetHeight = heightPoints * scale;
+
+        // First neither side over the cap (this alone tames a very long, thin page), then the area.
+        double fitSides = Math.Min(1.0, Math.Min(ComparisonMaxSide / targetWidth, ComparisonMaxSide / targetHeight));
+        targetWidth *= fitSides;
+        targetHeight *= fitSides;
+        double area = targetWidth * targetHeight;
+        if (area > ComparisonMaxPixels)
+        {
+            double fitArea = Math.Sqrt(ComparisonMaxPixels / area);
+            targetWidth *= fitArea;
+            targetHeight *= fitArea;
+        }
+
+        if (targetWidth < 1 || targetHeight < 1)
+        {
+            return false;
+        }
+
+        // Both values are now between 1 and ComparisonMaxSide, so the conversions cannot overflow, and rounding
+        // down keeps the area within the budget.
+        width = Math.Min(ComparisonMaxSide, (int)Math.Floor(targetWidth));
+        height = Math.Min(ComparisonMaxSide, (int)Math.Floor(targetHeight));
+        return true;
+    }
+
     /// <summary>Renders a loaded page for printing onto white, into a new array of BGRA pixels.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">The size is outside the comparison budget (a second line of
+    /// defence behind <see cref="TryGetComparisonSize"/>).</exception>
     private static byte[] RenderForComparison(IntPtr page, int width, int height)
     {
-        int stride = width * 4;
-        var pixels = new byte[stride * height];
+        // Computed in long and checked against the hard limit before anything is allocated.
+        long stride = (long)width * 4;
+        long length = stride * height;
+        if (width < 1 || height < 1 || width > ComparisonMaxSide || height > ComparisonMaxSide || length > ComparisonMaxBytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), $"A {width} x {height} comparison picture is outside the budget.");
+        }
+
+        var pixels = new byte[length];
 
         // Pinned only for the duration of this one render, so PDFium can draw straight into the array.
         GCHandle pin = GCHandle.Alloc(pixels, GCHandleType.Pinned);
         try
         {
-            IntPtr bitmap = PdfiumNative.FPDFBitmap_CreateEx(width, height, PdfiumNative.BitmapFormatBgra, pin.AddrOfPinnedObject(), stride);
+            IntPtr bitmap = PdfiumNative.FPDFBitmap_CreateEx(width, height, PdfiumNative.BitmapFormatBgra, pin.AddrOfPinnedObject(), (int)stride);
             if (bitmap == IntPtr.Zero)
             {
                 throw new InvalidOperationException($"PDFium could not create a {width} x {height} bitmap to compare a page with its copy.");

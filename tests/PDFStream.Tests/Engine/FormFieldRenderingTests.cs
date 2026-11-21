@@ -375,6 +375,106 @@ public sealed class FormFieldRenderingTests
         Assert.Equal([Rounds, Rounds], results);
     }
 
+    /// <summary>
+    /// The size of the pictures drawn to compare a form page with its copy stays within a fixed budget whatever the
+    /// page size: neither side above <see cref="PdfiumDocument.ComparisonMaxSide"/> pixels and the area within
+    /// <see cref="PdfiumDocument.ComparisonMaxPixels"/>. A page too extreme to compare is not compared at all.
+    /// </summary>
+    [Theory]
+    [InlineData(612f, 792f)]
+    [InlineData(400f, 300f)]
+    [InlineData(14400f, 14400f)]
+    [InlineData(1_000_000f, 1_000_000f)]
+    [InlineData(14400f, 100f)]
+    [InlineData(100_000_000f, 1f)]
+    [InlineData(1f, 100_000_000f)]
+    [InlineData(1e12f, 1f)]
+    [InlineData(float.MaxValue, float.MaxValue)]
+    [InlineData(float.MaxValue, 1f)]
+    public void The_comparison_never_draws_more_than_its_budget(float widthPoints, float heightPoints)
+    {
+        if (PdfiumDocument.TryGetComparisonSize(widthPoints, heightPoints, out int width, out int height))
+        {
+            _output.WriteLine($"{widthPoints} x {heightPoints} points: compared at {width} x {height} pixels");
+            AssertWithinComparisonBudget(width, height);
+        }
+        else
+        {
+            _output.WriteLine($"{widthPoints} x {heightPoints} points: not compared");
+        }
+    }
+
+    /// <summary>An ordinary page is compared at one pixel per point, and a very large one within the budget.</summary>
+    [Fact]
+    public void Ordinary_and_very_large_pages_are_compared()
+    {
+        Assert.True(PdfiumDocument.TryGetComparisonSize(612f, 792f, out int width, out int height));
+        Assert.Equal((612, 792), (width, height));
+
+        Assert.True(PdfiumDocument.TryGetComparisonSize(1_000_000f, 1_000_000f, out width, out height));
+        AssertWithinComparisonBudget(width, height);
+        Assert.Equal(width, height);
+    }
+
+    /// <summary>
+    /// A page size that is not a real size (not a number, infinite, zero or negative), or so small or so long and
+    /// thin that a side would be under one pixel, is not compared: the page takes the fallback for a copy that
+    /// cannot be verified.
+    /// </summary>
+    [Theory]
+    [InlineData(float.NaN, 300f)]
+    [InlineData(400f, float.NaN)]
+    [InlineData(float.PositiveInfinity, 300f)]
+    [InlineData(400f, float.NegativeInfinity)]
+    [InlineData(0f, 300f)]
+    [InlineData(400f, 0f)]
+    [InlineData(-400f, 300f)]
+    [InlineData(0.5f, 0.5f)]
+    [InlineData(100_000_000f, 1f)]
+    [InlineData(1e12f, 1f)]
+    public void Pages_too_odd_to_compare_are_not_compared(float widthPoints, float heightPoints)
+    {
+        Assert.False(PdfiumDocument.TryGetComparisonSize(widthPoints, heightPoints, out _, out _));
+    }
+
+    /// <summary>
+    /// Pages of extreme sizes and shapes print without an exception, and every picture drawn to compare a form page
+    /// with its copy stays within the budget (checked on the sizes handed to the comparison render).
+    /// </summary>
+    [Theory]
+    [InlineData("very wide and thin form page")]
+    [InlineData("very large form page")]
+    [InlineData("tiny form page")]
+    [InlineData("extremely wide form page")]
+    [InlineData("very wide and thin page without fields")]
+    public void Pages_of_extreme_size_print_and_their_comparison_stays_within_budget(string shape)
+    {
+        FormFixtureOptions options = shape switch
+        {
+            "very wide and thin form page" => new FormFixtureOptions { MediaBox = new PdfRect(0, 0, 100_000_000, 1) },
+            "very large form page" => new FormFixtureOptions { MediaBox = new PdfRect(0, 0, 1_000_000, 1_000_000) },
+            "tiny form page" => new FormFixtureOptions { MediaBox = new PdfRect(0, 0, 0.5f, 0.5f) },
+            "extremely wide form page" => new FormFixtureOptions { MediaBox = new PdfRect(0, 0, 1e12f, 1) },
+            "very wide and thin page without fields" => new FormFixtureOptions { WithFields = false, WithPageContent = true, MediaBox = new PdfRect(0, 0, 100_000_000, 1) },
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, "Unknown shape."),
+        };
+
+        using IPdfDocument document = Load(FormFixtureFactory.Create(options));
+        var sizes = new List<(int Width, int Height)>();
+        ((PdfiumDocument)document).ComparisonRendered = (width, height) => sizes.Add((width, height));
+
+        using var controller = new FakePrintController();
+        PrintResult result = PrintJob.Run(document, [0], TestPrinters.Settings(), "Extreme page", ScaleMode.FitToPage, CancellationToken.None, controller);
+
+        _output.WriteLine($"{shape}: page {document.GetPageSizePoints(0)}, comparison renders: {string.Join(", ", sizes)}, result {result.Status}");
+        Assert.True(result.Succeeded, result.Message);
+        Assert.Equal(1, result.PagesPrinted);
+        foreach ((int width, int height) in sizes)
+        {
+            AssertWithinComparisonBudget(width, height);
+        }
+    }
+
     /// <summary>Rendering the same form page again (as copies do) gives the same picture, fields included.</summary>
     [Theory]
     [InlineData(RenderPath.Bitmap)]
@@ -707,6 +807,14 @@ public sealed class FormFieldRenderingTests
         }
 
         return target;
+    }
+
+    /// <summary>Fails unless a comparison picture of this size is within the budget the engine promises.</summary>
+    private static void AssertWithinComparisonBudget(int width, int height)
+    {
+        Assert.InRange(width, 1, PdfiumDocument.ComparisonMaxSide);
+        Assert.InRange(height, 1, PdfiumDocument.ComparisonMaxSide);
+        Assert.True((long)width * height <= PdfiumDocument.ComparisonMaxPixels, $"A {width} x {height} comparison picture is over the pixel budget.");
     }
 
     /// <summary>The area, in pixels at <see cref="Dpi"/>, of the two printable fields (the text field and the checkbox).</summary>

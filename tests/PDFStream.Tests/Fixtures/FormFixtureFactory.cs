@@ -93,6 +93,13 @@ public sealed record FormFixtureOptions
     /// (/Properties), inherited with the rest under <see cref="InheritPageAttributes"/>.
     /// </summary>
     public bool WithHiddenLayer { get; init; }
+
+    /// <summary>
+    /// The page's MediaBox, in place of the default 400 x 300 points (for pages of extreme sizes and shapes). The
+    /// fields and marks keep their positions, so on a small page they may lie outside it; the page still has its
+    /// form fields. <see langword="null"/> (the default) keeps 400 x 300.
+    /// </summary>
+    public PdfRect? MediaBox { get; init; }
 }
 
 /// <summary>
@@ -111,7 +118,13 @@ public readonly record struct PdfRect(float Left, float Bottom, float Right, flo
     public float Height => Top - Bottom;
 
     /// <summary>The rectangle as written in a PDF array.</summary>
-    public string ToPdfArray() => FormattableString.Invariant($"[{Left} {Bottom} {Right} {Top}]");
+    public string ToPdfArray() => $"[{Number(Left)} {Number(Bottom)} {Number(Right)} {Number(Top)}]";
+
+    /// <summary>
+    /// A number as PDF syntax allows it: plain decimal digits, never exponent notation (which .NET uses for very
+    /// large or small floats and which PDF readers do not accept).
+    /// </summary>
+    private static string Number(float value) => ((double)value).ToString("0.#########", System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>
     /// Where the rectangle lands in a rendering of an unrotated, uncropped fixture page at
@@ -209,7 +222,7 @@ public static class FormFixtureFactory
         bool acroForm = o.WithFields && o.WithAcroForm;
 
         // Attributes a page may inherit from its parent. Written on the page or on /Pages, never both.
-        string mediaBox = "/MediaBox " + new PdfRect(0, 0, PageWidthPoints, PageHeightPoints).ToPdfArray();
+        string mediaBox = "/MediaBox " + (o.MediaBox ?? new PdfRect(0, 0, PageWidthPoints, PageHeightPoints)).ToPdfArray();
         string cropBox = o.WithCropBox ? " /CropBox " + CropBox.ToPdfArray() : string.Empty;
         string rotate = o.Rotate != 0 ? FormattableString.Invariant($" /Rotate {o.Rotate}") : string.Empty;
         string fonts = "/F1 16 0 R" + (o.WithResourceMarks ? " /F3 19 0 R" : string.Empty);
