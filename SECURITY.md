@@ -5,14 +5,14 @@
 Please do not report security problems in public issues, discussions or pull requests.
 
 Report them privately through GitHub's private vulnerability reporting on this repository: open the
-**Security** tab of [P4Software/PDFStream.net](https://github.com/P4Software/PDFStream.net) and choose
+**Security** tab of [P4Software/PDFStream.NET](https://github.com/P4Software/PDFStream.NET) and choose
 **Report a vulnerability** (or go straight to
-[the reporting form](https://github.com/P4Software/PDFStream.net/security/advisories/new)). Only the maintainers and
+[the reporting form](https://github.com/P4Software/PDFStream.NET/security/advisories/new)). Only the maintainers and
 you can see the report.
 
 Please include:
 
-- the PDFStream.net version (or commit), the .NET version, the Windows version and the processor architecture;
+- the PDFStream.NET version (or commit), the .NET version, the Windows version and the processor architecture;
 - what happens (a crash of the whole process, a hang, a file read or written that should not be, and so on);
 - if you can, a PDF or the steps that reproduce it. A PDF that crashes a print service is often a real
   document: remove anything confidential before you attach it, or describe how to build an equivalent file.
@@ -28,29 +28,29 @@ advisory unless you prefer not to be named.
 | Older releases | No: update to the latest release |
 | Builds from source | No: use the latest release, or the latest commit on `main` |
 
-Version 1.0.0-rc.1 is the first release of PDFStream.net (the package `PDFStream.net`). It has not been published on
+Version 1.0.0-rc.1 is the first release of PDFStream.NET (the package `PDFStream.NET`). It has not been published on
 NuGet yet; until it is, fixes land on `main` only.
 
 ## PDFium, the PDF engine
 
-PDFStream.net does not build or change PDFium: it calls the prebuilt `pdfium.dll` from the
+PDFStream.NET does not build or change PDFium: it calls the prebuilt `pdfium.dll` from the
 [`bblanchon.PDFium.Win32`](https://www.nuget.org/packages/bblanchon.PDFium.Win32) NuGet package. Security fixes in
-PDFium are taken by updating that dependency to a newer build and releasing a new PDFStream.net version. An
-application can also reference a newer `bblanchon.PDFium.Win32` directly, which NuGet then uses instead; PDFStream.net
+PDFium are taken by updating that dependency to a newer build and releasing a new PDFStream.NET version. An
+application can also reference a newer `bblanchon.PDFium.Win32` directly, which NuGet then uses instead; PDFStream.NET
 has only been tested with the version it depends on.
 
 Printing form fields uses one PDFium function that PDFium marks as experimental: `FPDF_ImportPagesByIndex`, which
-copies pages within PDFStream.net's in-memory copy of the PDF. It has been tested only with PDFium 160.0.8165, the
-version PDFStream.net depends on. With a `pdfium.dll` in which that function is missing or fails, form fields still
+copies pages within PDFStream.NET's in-memory copy of the PDF. It has been tested only with PDFium 160.0.8165, the
+version PDFStream.NET depends on. With a `pdfium.dll` in which that function is missing or fails, form fields still
 print, drawn into each page itself, but a page that takes its fonts or images from the PDF's page tree then prints
 without them; see [Form fields](docs/usage.md#form-fields).
 
 ## Known limits
 
-PDFium runs inside the program that calls PDFStream.net, without a sandbox, so a malformed or hostile PDF that crashes
+PDFium runs inside the program that calls PDFStream.NET, without a sandbox, so a malformed or hostile PDF that crashes
 it ends that whole process. This and the other limits (one hung printer driver stalls every print in the
 process; cancellation is checked between pages only) are explained, with what to do about them, in
-[Security and limits](docs/usage.md#security-and-limits). A PDF that crashes or hangs PDFStream.net is still worth
+[Security and limits](docs/usage.md#security-and-limits). A PDF that crashes or hangs PDFStream.NET is still worth
 reporting as described above.
 
 Two more limits are known and accepted for the first release:

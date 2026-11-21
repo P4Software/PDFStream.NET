@@ -1,6 +1,6 @@
 <div align="center">
 
-# PDFStream.net
+# PDFStream.NET
 
 **Free, open-source PDF printing for .NET.**
 Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licence keys, no watermarks.
@@ -17,18 +17,18 @@ Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licen
 > **Status: version 1.0.0-rc.1, the first release (a release candidate).** The library is complete and its automated tests pass, including
 > real prints to *Microsoft Print to PDF* in 64-bit and 32-bit processes. The manual release checklist
 > (physical printers, a Windows service, a scheduled task, Arm64 hardware) is **not complete yet**, and the
-> package (`PDFStream.net`) is **not on NuGet yet**. The stable 1.0.0 follows once the remaining checklist rows
+> package (`PDFStream.NET`) is **not on NuGet yet**. The stable 1.0.0 follows once the remaining checklist rows
 > (Arm64, a scheduled task, IIS, other physical and duplex printers) are verified. PDF to image conversion is
 > planned after 1.0.
 > See [what has been verified](#what-has-been-verified).
 
-## Why PDFStream.net?
+## Why PDFStream.NET?
 
 Printing a PDF from a .NET application should not need a paid licence, a licence key that expires, or a copy
 of Adobe Reader installed on every server. Yet today most developers either pay for a commercial library or
 fight with the Windows print system themselves.
 
-PDFStream.net is a small, focused library that does one job well: **take a PDF and print it, silently, on the
+PDFStream.NET is a small, focused library that does one job well: **take a PDF and print it, silently, on the
 printer you choose.** It is built by [P4 Software](https://github.com/P4Software) because we needed it for our
 own warehouse software, and we are sharing it so nobody else has to pay for it.
 
@@ -43,27 +43,27 @@ own warehouse software, and we are sharing it so nobody else has to pay for it.
 - **Plain-language results**: every failure comes back as a status and a message that says what went wrong
   and what to do next. It never throws managed exceptions for bad input or printer problems, such as a bad file
   or a paused printer. A crash inside the native PDF engine is the one thing no .NET library can turn into a
-  result; see [Security and limits](https://github.com/P4Software/PDFStream.net/blob/main/docs/usage.md#security-and-limits).
+  result; see [Security and limits](https://github.com/P4Software/PDFStream.NET/blob/main/docs/usage.md#security-and-limits).
 - **No Adobe, nothing else to install**: the PDF engine (PDFium) comes with the package for x64, x86 and Arm64.
 - **No licence keys, watermarks, expiry dates, telemetry or network calls. Ever.**
 
 ## Install
 
-PDFStream.net is not published on NuGet yet. Version 1.0.0-rc.1 is the first release and a prerelease, so once it
-is published a plain `dotnet add package PDFStream.net` finds nothing until the stable 1.0.0 exists. Add the
+PDFStream.NET is not published on NuGet yet. Version 1.0.0-rc.1 is the first release and a prerelease, so once it
+is published a plain `dotnet add package PDFStream.NET` finds nothing until the stable 1.0.0 exists. Add the
 prerelease explicitly:
 
 ```text
-dotnet add package PDFStream.net --prerelease
+dotnet add package PDFStream.NET --prerelease
 ```
 
-or name the version: `dotnet add package PDFStream.net --version 1.0.0-rc.1`. On nuget.org the package page lists
+or name the version: `dotnet add package PDFStream.NET --version 1.0.0-rc.1`. On nuget.org the package page lists
 prereleases only when "Include prerelease" is ticked.
 
-The package, the assembly and the namespace are all called `PDFStream.net`: in your code you write
-`using PDFStream.net;`.
+The package, the assembly and the namespace are all called `PDFStream.NET`: in your code you write
+`using PDFStream.NET;`.
 
-Until then, build the package from this repository (see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.net/blob/main/CONTRIBUTING.md)) and add the
+Until then, build the package from this repository (see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.NET/blob/main/CONTRIBUTING.md)) and add the
 folder it lands in as a package source.
 
 Requirements:
@@ -78,7 +78,7 @@ right one next to your program. There is nothing else to install.
 ## Use it
 
 ```csharp
-using PDFStream.net;
+using PDFStream.NET;
 
 // Print a PDF that is already in memory, for example one just downloaded from an API.
 byte[] pdf = await File.ReadAllBytesAsync("packing-slip.pdf");
@@ -122,24 +122,24 @@ were sent.
 
 ## Documentation
 
-- [Usage guide](https://github.com/P4Software/PDFStream.net/blob/main/docs/usage.md): every option, every status and its message, copies, passwords, printing
+- [Usage guide](https://github.com/P4Software/PDFStream.NET/blob/main/docs/usage.md): every option, every status and its message, copies, passwords, printing
   to a file, cancelling, threads.
-- [Services, scheduled tasks and IIS](https://github.com/P4Software/PDFStream.net/blob/main/docs/services-and-iis.md): the account must be able to see the
+- [Services, scheduled tasks and IIS](https://github.com/P4Software/PDFStream.NET/blob/main/docs/services-and-iis.md): the account must be able to see the
   printer, and other things a program without a screen needs.
-- [Troubleshooting](https://github.com/P4Software/PDFStream.net/blob/main/docs/troubleshooting.md), organised by the message you got.
-- [Contributing](https://github.com/P4Software/PDFStream.net/blob/main/CONTRIBUTING.md): building, testing and the release checklist.
-- [Security](https://github.com/P4Software/PDFStream.net/blob/main/SECURITY.md): how to report a vulnerability privately; read
-  [Security and limits](https://github.com/P4Software/PDFStream.net/blob/main/docs/usage.md#security-and-limits) before printing PDFs you do not trust.
+- [Troubleshooting](https://github.com/P4Software/PDFStream.NET/blob/main/docs/troubleshooting.md), organised by the message you got.
+- [Contributing](https://github.com/P4Software/PDFStream.NET/blob/main/CONTRIBUTING.md): building, testing and the release checklist.
+- [Security](https://github.com/P4Software/PDFStream.NET/blob/main/SECURITY.md): how to report a vulnerability privately; read
+  [Security and limits](https://github.com/P4Software/PDFStream.NET/blob/main/docs/usage.md#security-and-limits) before printing PDFs you do not trust.
 
 ## Try it without writing code
 
-`samples/PDFStream.net.TestPrint` is a small program you run by double-clicking `PDFStream.net.TestPrint.exe`. On the
+`samples/PDFStream.NET.TestPrint` is a small program you run by double-clicking `PDFStream.NET.TestPrint.exe`. On the
 first run it creates a commented `settings.json` next to itself and lists your printers. Fill in the printer
 name and a PDF, and run it again: by default it is a **dry run** that only checks your settings and shows what
 it would send. Set `ReallyPrint` to `true` to print. Paths copied with Explorer's "Copy as path" work even
 though they carry quote marks. It is also a short example of using the public API.
 
-Every CI build keeps a ready-to-run copy (the `PDFStream.net.TestPrint-win-x64` artifact): a single exe for 64-bit
+Every CI build keeps a ready-to-run copy (the `PDFStream.NET.TestPrint-win-x64` artifact): a single exe for 64-bit
 (x64) Windows only, which includes .NET and `pdfium.dll`, so .NET does not have to be installed. It is not signed,
 so Windows SmartScreen may warn before it runs, and on its first run it extracts `pdfium.dll` to a folder under
 your temporary folder. `LICENSE` and `THIRD-PARTY-NOTICES.md` come next to the exe: it carries the .NET runtime
@@ -153,20 +153,17 @@ On one Windows 11 x64 machine:
 
 - The full test suite for `net8.0-windows` and `net10.0-windows`, in a 64-bit and in a 32-bit (x86) process,
   including real prints to *Microsoft Print to PDF* whose output is checked page by page for ink. Last run on
-  2026-11-21, at commit c182b0c: all tests passed, none skipped.
-- The package, from a separate app outside this repository. On 2026-11-20, before the package was renamed to
-  `PDFStream.net`: built and published for win-x64, win-x86 and win-arm64 on both frameworks, the right
-  `pdfium.dll` lands next to the app, and the x64 and x86 builds printed a two-page PDF to *Microsoft Print to
-  PDF*. On 2026-11-21, under its name `PDFStream.net`, it was packed and checked again from a separate win-x64 app
-  on `net10.0-windows`, which printed a page to *Microsoft Print to PDF*. After the assembly and namespace were
-  renamed to `PDFStream.net` (also 2026-11-21), the package was packed once more and used from separate win-x64
-  and win-x86 apps on `net10.0-windows` with `using PDFStream.net;`; each printed a two-page PDF to *Microsoft
-  Print to PDF* and the right `pdfium.dll` landed next to the exe. Packed again on 2026-11-21 after the latest
-  form-printing changes, it was used from a separate win-x64 app on `net10.0-windows`, which sent a one-page PDF
-  with a filled form field to *Microsoft Print to PDF* and got status Ok and an output file (its content was not
-  inspected).
+  2026-11-21, after the name was set to PDFStream.NET: all tests passed, none skipped (452 on `net8.0-windows`,
+  477 on `net10.0-windows`).
+- The package, from a separate app outside this repository. Under the package's earlier names, on 2026-11-20 and
+  2026-11-21: built and published for win-x64, win-x86 and win-arm64 on both frameworks, the right `pdfium.dll`
+  lands next to the app, and the x64 and x86 builds printed a two-page PDF to *Microsoft Print to PDF* (the
+  CHANGELOG lists each run and the spelling of the name at the time). Under its final name PDFStream.NET, on
+  2026-11-21: the package was packed as `PDFStream.NET.1.0.0-rc.1.nupkg` and used from a separate win-x64 app on
+  `net10.0-windows` with `using PDFStream.NET;`, which printed a PDF to *Microsoft Print to PDF*, and the right
+  `pdfium.dll` landed next to the exe.
 
-Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream.net/blob/main/docs/release-checklist.md)): running on an Arm64
+Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream.NET/blob/main/docs/release-checklist.md)): running on an Arm64
 PC, physical printers (duplex, network printers), and printing from a Windows service, a scheduled task
 or IIS.
 
@@ -183,16 +180,16 @@ or IIS.
 
 ## Get involved
 
-PDFStream.net is open source and built in the open. Bug reports, printer and driver reports and pull requests
-are welcome: open an [issue](https://github.com/P4Software/PDFStream.net/issues), especially about the printers,
-servers and PDF files that give you trouble today. See [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.net/blob/main/CONTRIBUTING.md).
+PDFStream.NET is open source and built in the open. Bug reports, printer and driver reports and pull requests
+are welcome: open an [issue](https://github.com/P4Software/PDFStream.NET/issues), especially about the printers,
+servers and PDF files that give you trouble today. See [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.NET/blob/main/CONTRIBUTING.md).
 
 ## Licence
 
-PDFStream.net is free and open source under the [MIT License](https://github.com/P4Software/PDFStream.net/blob/main/LICENSE), copyright 2026 P4 Software. Use it in
+PDFStream.NET is free and open source under the [MIT License](https://github.com/P4Software/PDFStream.NET/blob/main/LICENSE), copyright 2026 P4 Software. Use it in
 personal, commercial and closed-source projects, with no fees and no licence keys. The PDF engine and the
 libraries inside it keep their own permissive licences; see
-[THIRD-PARTY-NOTICES.md](https://github.com/P4Software/PDFStream.net/blob/main/THIRD-PARTY-NOTICES.md).
+[THIRD-PARTY-NOTICES.md](https://github.com/P4Software/PDFStream.NET/blob/main/THIRD-PARTY-NOTICES.md).
 
 ---
 

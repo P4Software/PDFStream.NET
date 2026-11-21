@@ -1,6 +1,6 @@
 # Third-party notices
 
-PDFStream.net is released under the MIT licence (see [LICENSE](LICENSE)), copyright 2026 P4 Software.
+PDFStream.NET is released under the MIT licence (see [LICENSE](LICENSE)), copyright 2026 P4 Software.
 It ships with, or depends on, the third-party software listed below. Each component stays under its
 own licence; the full licence texts are reproduced at the end of this file.
 
@@ -12,7 +12,7 @@ own licence; the full licence texts are reproduced at the end of this file.
 | Package | [`bblanchon.PDFium.Win32`](https://www.nuget.org/packages/bblanchon.PDFium.Win32) **160.0.8165** (PDFium from Chromium build 8165, built by [bblanchon/pdfium-binaries](https://github.com/bblanchon/pdfium-binaries) without V8 and without XFA) |
 | PDFium licence | BSD-3-Clause, with parts under Apache-2.0 (both texts are in PDFium's licence file) |
 | Packaging licence | MIT (the pdfium-binaries build scripts); the NuGet package declares Apache-2.0 |
-| How PDFStream.net uses it | Through PDFStream.net's own P/Invoke declarations (`src/PDFStream.net/Engine/PdfiumNative.cs`), written from PDFium's public header `fpdfview.h`. No third-party .NET binding is used. |
+| How PDFStream.NET uses it | Through PDFStream.NET's own P/Invoke declarations (`src/PDFStream.NET/Engine/PdfiumNative.cs`), written from PDFium's public header `fpdfview.h`. No third-party .NET binding is used. |
 
 The NuGet package itself contains no licence files. The texts below come from the release archives of
 the same build (release `chromium/8165` of bblanchon/pdfium-binaries), whose `LICENSE` says: "This
@@ -29,7 +29,7 @@ architecture; the `LICENSE` file and the 18 files in `licenses/` are identical i
 
 | Candidate | Version checked | Licence | Decision |
 |---|---|---|---|
-| `bblanchon.PDFium.Win32` + PDFStream.net's own P/Invoke | 160.0.8165 | Apache-2.0 (package), MIT (scripts), BSD-3-Clause/Apache-2.0 (PDFium) | **Chosen.** Ships win-x64, win-x86 and win-arm64 binaries; all three export `FPDF_RenderPage`, the render-to-device-context function printing needs. Only Windows binaries, no extra dependencies. |
+| `bblanchon.PDFium.Win32` + PDFStream.NET's own P/Invoke | 160.0.8165 | Apache-2.0 (package), MIT (scripts), BSD-3-Clause/Apache-2.0 (PDFium) | **Chosen.** Ships win-x64, win-x86 and win-arm64 binaries; all three export `FPDF_RenderPage`, the render-to-device-context function printing needs. Only Windows binaries, no extra dependencies. |
 | `PDFiumCore` | 157.0.8100 | Apache-2.0 | Rejected. Its generated binding has no `FPDF_RenderPage` (device context) entry point, only bitmap rendering. It also pulls in the Linux and macOS PDFium packages and has no net10.0 build. |
 | `Nong.PDFiumCore` (fork of PDFiumCore) | 152.0.7947.1 | Apache-2.0 declared in the package; the repository licence file could not be read (the gitcode page returned HTML) | Rejected. Same generated binding, so also no `FPDF_RenderPage`; single-maintainer fork on an older PDFium build. |
 
@@ -72,7 +72,7 @@ These are ordinary NuGet dependencies, restored from nuget.org; they are listed 
 
 ## Redistributing pdfium.dll
 
-Every application built with PDFStream.net ships `pdfium.dll` next to its program (the `bblanchon.PDFium.Win32`
+Every application built with PDFStream.NET ships `pdfium.dll` next to its program (the `bblanchon.PDFium.Win32`
 dependency puts it there), and so redistributes PDFium and the libraries compiled into it. Their licences
 (BSD-3-Clause, Apache-2.0 and the others listed above) require that whoever receives the binary also receives
 their notices. **Any application that redistributes pdfium.dll must carry the PDFium section of these notices**:
@@ -81,7 +81,7 @@ Shipping this whole file with your program is the simplest way to do that.
 
 ## The test-print sample exe
 
-The `PDFStream.net.TestPrint-win-x64` artifact that CI publishes is one self-contained exe. Besides PDFStream.net (MIT,
+The `PDFStream.NET.TestPrint-win-x64` artifact that CI publishes is one self-contained exe. Besides PDFStream.NET (MIT,
 see [LICENSE](LICENSE)) and `pdfium.dll` (the PDFium section above applies to it), it carries:
 
 | Component | Licence | Notes |
@@ -96,7 +96,7 @@ The sample's build and publish output put `LICENSE` and this file next to the ex
 The test project uses xUnit.net v3 (Apache-2.0), Microsoft.NET.Test.Sdk (MIT), Microsoft Testing
 Platform (MIT) and PDFsharp **6.2.4** (MIT) with its MIT-licensed dependencies. PDFsharp is pinned to
 exactly 6.2.4 because PDFsharp 6.5.0 and later, including the 7.0 previews, are AGPL-3.0-only. None of
-these is part of the PDFStream.net package.
+these is part of the PDFStream.NET package.
 
 ---
 

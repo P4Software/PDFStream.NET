@@ -1,7 +1,7 @@
 # Troubleshooting
 
 Find the message you got below; each section says what it means and what to check. The messages are the
-exact texts PDFStream.net returns in `PrintResult.Message` (text in angle brackets is filled in for the actual
+exact texts PDFStream.NET returns in `PrintResult.Message` (text in angle brackets is filled in for the actual
 job). Problems that come with no error at all are at the end, starting with
 [It says printed but nothing came out](#it-says-printed-but-nothing-came-out).
 
@@ -77,7 +77,7 @@ drivers for the same model.
 > The output file "&lt;path&gt;" cannot be used. Check that the path is a file name (not a folder) and that the folder it is in already exists.
 
 Status `InvalidOptions`. `OutputFile` is blank, names a folder, contains characters Windows does not allow
-in a file name, or its folder does not exist. PDFStream.net never creates folders: create it first.
+in a file name, or its folder does not exist. PDFStream.NET never creates folders: create it first.
 
 ## Problems with the printer
 
@@ -96,7 +96,7 @@ can see. See [services-and-iis.md](services-and-iis.md#the-account-must-see-the-
 
 Status `PrinterUnavailable`. The general printer message. It covers:
 
-- `Duplex` set to `LongEdge` or `ShortEdge` on a printer whose driver cannot print on both sides (PDFStream.net
+- `Duplex` set to `LongEdge` or `ShortEdge` on a printer whose driver cannot print on both sides (PDFStream.NET
   refuses rather than printing one-sided). Use `DuplexMode.PrinterDefault` or `None`, or another printer.
 - Windows lists the printer but cannot open it, or rejects its settings.
 - The print system failed while the job was running (for example the driver failed to start or end the job).
@@ -108,7 +108,7 @@ Status `PrinterUnavailable`. The general printer message. It covers:
 
 > The printer "&lt;printer name&gt;" is paused in Windows, so the document was not sent. Open the printer's queue (Settings, Printers & scanners), choose Resume, then print again.
 
-Status `PrinterUnavailable`. A paused queue would accept the job and hold it, so PDFStream.net refuses instead of
+Status `PrinterUnavailable`. A paused queue would accept the job and hold it, so PDFStream.NET refuses instead of
 reporting a print that never comes out. Resume the queue.
 
 ### "The printer "&lt;printer name&gt;" is set to "Use printer offline" in Windows, ..."
@@ -144,8 +144,8 @@ permissions), or the print server cannot be reached.
 Status `PrinterUnavailable`. Start the Print Spooler service (`services.msc`, "Print Spooler", Start; set it
 to start automatically).
 
-What PDFStream.net detects: Windows answers "RPC server unavailable" (error 1722) while the spooler service is
-stopped, and PDFStream.net gives this message when it gets that answer while reading the list of printers, while
+What PDFStream.NET detects: Windows answers "RPC server unavailable" (error 1722) while the spooler service is
+stopped, and PDFStream.NET gives this message when it gets that answer while reading the list of printers, while
 opening the printer's queue, or when the printer you named is not in the list and the local spooler, asked
 directly, gives that answer. What it does not do: it does not ask the Windows service manager about the
 service, so a spooler that fails in some other way (still starting, crashing, refusing this account) gets the
@@ -178,7 +178,7 @@ job, open the PDF in a viewer, and keep the "Details" text for a bug report.
 
 > Page &lt;n&gt; could not be printed: the printer did not accept it as drawing commands, and the page is too large to send as a picture with the memory available. Printing was stopped and the unfinished job may have been withdrawn from the print queue, so check the print queue for a job left over from this document and delete it. Choose a smaller paper size, or split the document into smaller parts, then try again.
 
-Status `UnknownError`, `PagesPrinted` 0. The driver refused the page as drawing commands, so PDFStream.net tried
+Status `UnknownError`, `PagesPrinted` 0. The driver refused the page as drawing commands, so PDFStream.NET tried
 to send it as a picture, and there was not enough memory for one. This happens most in 32-bit programs with
 very large pages; a 64-bit build of your program usually solves it.
 
@@ -200,7 +200,7 @@ module could not be found. (0x8007007E)"; see
 can wait in the Windows queue:
 
 - **The printer shows "Offline" in Windows but it really is on.** Network printers often report Offline
-  through SNMP while they print perfectly well, so PDFStream.net does not refuse a printer just because Windows
+  through SNMP while they print perfectly well, so PDFStream.NET does not refuse a printer just because Windows
   says Offline. Only these queue states are refused (with their own messages above): paused, "Use printer
   offline", not available, being deleted, and a queue that cannot be opened (including a stopped Print
   Spooler).
@@ -228,7 +228,7 @@ the last sheet of the previous copy. Print one copy per call when that matters.
 
 ### Form fields are missing on the paper
 
-PDFStream.net prints filled-in form fields (see [usage.md](usage.md#form-fields)). If some are missing:
+PDFStream.NET prints filled-in form fields (see [usage.md](usage.md#form-fields)). If some are missing:
 
 - **The field is marked as not printable.** PDF forms can hide a field from paper (often instructions or
   buttons). Such fields stay off the paper on purpose, as they do when the PDF is printed from a viewer.
@@ -239,7 +239,7 @@ PDFStream.net prints filled-in form fields (see [usage.md](usage.md#form-fields)
 - **A value shows in one format on screen and another on paper.** Form scripts do not run, so a value that a
   script formats (dates, currency) prints as it is stored in the PDF.
 - **Every field of one page is blank, but the rest of that page prints.** The PDF engine refused to draw that
-  page's fields at all, both into a copy of the page and into the page itself, so PDFStream.net printed the page
+  page's fields at all, both into a copy of the page and into the page itself, so PDFStream.NET printed the page
   without them instead of failing the print. If you can share the PDF, open an issue with it.
 - **The fields print, but images or text are missing from that page.** This is the known limitation of form
   printing (see [usage.md](usage.md#form-fields)). A page with fields is normally printed from a copy that has
@@ -247,7 +247,7 @@ PDFStream.net prints filled-in form fields (see [usage.md](usage.md#form-fields)
   the page takes its fonts or images from the PDF's page tree (instead of carrying them itself), those are then
   hidden. The copy cannot be used, for example, when the PDF switches layers off on that page, when the page
   refers to something the file does not contain (a damaged PDF), when the PDF is larger than 64 MB (the copy
-  budget), or when your application uses a `pdfium.dll` other than the one PDFStream.net was tested with (see
+  budget), or when your application uses a `pdfium.dll` other than the one PDFStream.NET was tested with (see
   [usage.md](usage.md#form-fields)). Print or save the filled form to a plain PDF first (for example with
   "Microsoft Print to PDF" from a viewer, or with the "flatten" option of the tool that filled it) and print
   that file.
@@ -257,7 +257,7 @@ PDFStream.net prints filled-in form fields (see [usage.md](usage.md#form-fields)
 Known limitation. In a PDF with three or more form pages that share one indirect `/Contents` array (and one
 indirect `/Resources` dictionary), a later page can also print the fields of earlier pages, and the status is
 still `Ok`: the third page also shows the second page's field values, the fourth page also shows those of the
-second and third. The check PDFStream.net makes before it uses a page copy catches the first affected page, but
+second and third. The check PDFStream.NET makes before it uses a page copy catches the first affected page, but
 the fallback that then draws the fields into the page itself edits the same shared array. See
 [usage.md](usage.md#form-fields). Workarounds:
 
@@ -269,4 +269,4 @@ the fallback that then draws the fields into the page itself edits the same shar
 ### A PDF marked "printing not allowed" printed anyway
 
 That is by design: owner permissions such as "printing not allowed" are ignored, as server automation
-expects. Only an open password stops PDFStream.net from reading a PDF.
+expects. Only an open password stops PDFStream.NET from reading a PDF.

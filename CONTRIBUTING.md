@@ -1,7 +1,7 @@
-# Contributing to PDFStream.net
+# Contributing to PDFStream.NET
 
 Thank you for helping. Bug reports, printer and driver reports, documentation fixes and pull requests are all
-welcome. Please open an [issue](https://github.com/P4Software/PDFStream.net/issues) before a large change, so we
+welcome. Please open an [issue](https://github.com/P4Software/PDFStream.NET/issues) before a large change, so we
 can agree on the approach first.
 
 ## What you need
@@ -39,8 +39,8 @@ For the same reason, filter tests with the Testing Platform options (`--filter-m
 
 ```text
 dotnet build
-dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net8.0-windows
-dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net10.0-windows
+dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj --framework net8.0-windows
+dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj --framework net10.0-windows
 ```
 
 Run both frameworks before you open a pull request. The sample's tests only exist for `net10.0-windows`,
@@ -49,16 +49,16 @@ because the sample targets only that framework.
 One test, one class, or one category:
 
 ```text
-dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net10.0-windows --filter-method "PDFStream.net.Tests.Acceptance.RealPrintTests.Prints_three_page_pdf_to_file_with_three_pages_and_non_blank_output"
-dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --framework net10.0-windows --filter-class "PDFStream.net.Tests.PdfPrinterTests"
-dotnet test --project tests/PDFStream.net.Tests --filter-trait "Category=RealPrinter" --framework net8.0-windows
+dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj --framework net10.0-windows --filter-method "PDFStream.NET.Tests.Acceptance.RealPrintTests.Prints_three_page_pdf_to_file_with_three_pages_and_non_blank_output"
+dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj --framework net10.0-windows --filter-class "PDFStream.NET.Tests.PdfPrinterTests"
+dotnet test --project tests/PDFStream.NET.Tests --filter-trait "Category=RealPrinter" --framework net8.0-windows
 ```
 
 32-bit (x86) runs, which load the x86 `pdfium.dll`:
 
 ```text
-dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --arch x86 --framework net8.0-windows
-dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --arch x86 --framework net10.0-windows
+dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj --arch x86 --framework net8.0-windows
+dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj --arch x86 --framework net10.0-windows
 ```
 
 Arm64 cannot be tested on an x64 machine; it is a manual check on a real Arm64 PC.
@@ -72,20 +72,20 @@ Telemetry: to keep the .NET CLI and the Testing Platform from sending usage data
 ## Package and sample
 
 ```text
-dotnet pack src/PDFStream.net/PDFStream.net.csproj --configuration Release --output artifacts/package
-dotnet publish samples/PDFStream.net.TestPrint/PDFStream.net.TestPrint.csproj --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:PublishDocumentationFiles=false --output artifacts/testprint
+dotnet pack src/PDFStream.NET/PDFStream.NET.csproj --configuration Release --output artifacts/package
+dotnet publish samples/PDFStream.NET.TestPrint/PDFStream.NET.TestPrint.csproj --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:PublishDocumentationFiles=false --output artifacts/testprint
 ```
 
-The package is named `PDFStream.net`, so `dotnet pack` writes `artifacts/package/PDFStream.net.<version>.nupkg`
-(`PDFStream.net.1.0.0-rc.1.nupkg` for the first release). The version is set in one place, `VersionPrefix` and
+The package is named `PDFStream.NET`, so `dotnet pack` writes `artifacts/package/PDFStream.NET.<version>.nupkg`
+(`PDFStream.NET.1.0.0-rc.1.nupkg` for the first release). The version is set in one place, `VersionPrefix` and
 `VersionSuffix` in `Directory.Build.props`, and the package check in `.github/workflows/ci.yml` expects the same
 version: change both together when a new version is released.
-The assembly inside it is `PDFStream.net.dll` and the namespace is `PDFStream.net`.
+The assembly inside it is `PDFStream.NET.dll` and the namespace is `PDFStream.NET`.
 
 The package does not contain `pdfium.dll` itself: it depends on the `bblanchon.PDFium.Win32` package, whose
 `runtimes/win-x64`, `win-x86` and `win-arm64` folders give a consuming app the right copy. If you change
 anything about packaging, check it from a separate consumer app outside the repository: reference the package
-with `<PackageReference Include="PDFStream.net" Version="<version>" />`, add
+with `<PackageReference Include="PDFStream.NET" Version="<version>" />`, add
 `artifacts/package` as a package source in that app's `nuget.config`, point `NUGET_PACKAGES` at an empty
 folder (so an older copy of the package in your cache cannot stand in for the new one), build and publish it
 with `-r win-x64`, `-r win-x86`, `-r win-arm64` and with no runtime identifier, for `net8.0-windows` and

@@ -1,11 +1,11 @@
-# PDFStream.net v1: design
+# PDFStream.NET v1: design
 
 Date: 2026-11-20. Status: the design the first release (the release candidate 1.0.0-rc.1, then the stable 1.0.0) is
 built to; "v1" in this document and in its file name means that first release. Owner: P4 Software.
 
 ## Intent and why
 
-PDFStream.net is a free, open-source .NET library that prints a PDF, silently, to a Windows printer.
+PDFStream.NET is a free, open-source .NET library that prints a PDF, silently, to a Windows printer.
 Commercial libraries do this today, but they cost money, often depend on licence keys, or need Adobe
 Reader installed. We needed it for our own warehouse software, and decided to build it and give it
 away. The first real user is our warehouse software's print service, a Windows service that prints
@@ -23,9 +23,9 @@ PDFs from a service or server is the audience.
 4. **Password-protected PDFs.**
 5. **Failures come back as a result, never an unexpected exception**, with a status and a plain
    language message that says what happened and what to do next.
-6. **Serve the first user**: the warehouse print service switches to PDFStream.net by changing its single
+6. **Serve the first user**: the warehouse print service switches to PDFStream.NET by changing its single
    print call. This is the acceptance test (see below).
-7. Ships as the NuGet package `PDFStream.net` with the PDF engine inside it.
+7. Ships as the NuGet package `PDFStream.NET` with the PDF engine inside it.
 
 ## Non-goals (not in v1)
 
@@ -89,7 +89,7 @@ Inside A there are two sub-decisions:
 ## Public API (design sketch; the code has the final names)
 
 ```csharp
-namespace PDFStream.net;
+namespace PDFStream.NET;
 
 public static class PdfPrinter
 {
@@ -139,9 +139,9 @@ which is simpler to change directly.
 ## Repository layout
 
 ```
-src/PDFStream.net/               the library
-tests/PDFStream.net.Tests/       unit and integration tests
-samples/PDFStream.net.TestPrint  double-click sample: lists printers, prints a chosen PDF
+src/PDFStream.NET/               the library
+tests/PDFStream.NET.Tests/       unit and integration tests
+samples/PDFStream.NET.TestPrint  double-click sample: lists printers, prints a chosen PDF
 docs/                       usage guide, printing from services and IIS, troubleshooting
 docs/design/                this design
 .github/workflows/          CI: build and test on windows-latest, pack NuGet
@@ -158,7 +158,7 @@ LICENSE  README.md  CHANGELOG.md  THIRD-PARTY-NOTICES.md  CONTRIBUTING.md
 4. Bad input (missing file, garbage bytes, unknown printer) returns a status and message, never throws.
 5. Runs from a Windows service and from a scheduled task under a normal service account.
 6. x64, x86 and arm64 packages load and print.
-7. **First-user switch**: the warehouse print service's single print call is changed to PDFStream.net
+7. **First-user switch**: the warehouse print service's single print call is changed to PDFStream.NET
    and, on one real PC, packing slips and bills of lading print correctly and look the same as
    before. Done only when the printouts have been checked on paper by eye.
 8. The package contains no keys, no telemetry, and the licence file and third-party notices.
@@ -167,7 +167,7 @@ LICENSE  README.md  CHANGELOG.md  THIRD-PARTY-NOTICES.md  CONTRIBUTING.md
 
 - **Call shape today.** One call per document: the PDF as a byte array, a printer name, an empty
   password and a document name. It sets no paper size, orientation, margins, tray, duplex or copies,
-  so the printer's own defaults apply. PDFStream.net's defaults must therefore be: printer defaults for
+  so the printer's own defaults apply. PDFStream.NET's defaults must therefore be: printer defaults for
   everything (colour included: `Color` stays `null`, which leaves the printer's own colour setting,
   unless the caller sets it), and the page scaled to fit the printable area and rotated to match the paper
   (the safest match for packing slips and bills of lading; acceptance test 7 is judged by eye against
@@ -210,7 +210,7 @@ LICENSE  README.md  CHANGELOG.md  THIRD-PARTY-NOTICES.md  CONTRIBUTING.md
 - **Owner permission flags** (a PDF that says "printing not allowed"): ignored in v1, which matches
   what the commercial libraries do and what server automation expects; documented clearly.
 - **Form fields.** PDFium's page-drawing calls never draw form fields, so pages with fields are flattened
-  before they are drawn, inside PDFStream.net's private in-memory copy of the PDF. Flattening a page in place is
+  before they are drawn, inside PDFStream.NET's private in-memory copy of the PDF. Flattening a page in place is
   wrong when the page inherits its /Resources: `FPDFPage_Flatten` creates an empty /Resources on the page, which
   hides the inherited fonts, images and XObjects. So the pages with fields among the pages a print job draws are
   copied to the end of the document first, in one `FPDF_ImportPagesByIndex` call with the document as source and
@@ -263,10 +263,10 @@ LICENSE  README.md  CHANGELOG.md  THIRD-PARTY-NOTICES.md  CONTRIBUTING.md
 ## Open questions
 
 1. **Funding and sustainability** of the project (open since 2026-11-20; does not block 1.0).
-2. **NuGet package ID**: decided on 2026-11-21: the package is `PDFStream.net`, the only name shown on
-   nuget.org; the assembly (`PDFStream.net.dll`) and the C#
-   namespace (`PDFStream.net`) carry the same name, decided the same day, before any user depends on the library.
-   Checked on 2026-11-21: nuget.org has
-   no package with the ID `PDFStream.net` (its package content API answered 404 Not Found for
-   `pdfstream.net`), so it is free until someone publishes one. (Plain `PDFStream` was also free on
-   2026-11-20, but it is no longer the chosen ID.)
+2. **NuGet package ID**: decided on 2026-11-21: the package is `PDFStream.NET` (capital NET, like the owner's
+   SheetStream.NET; the owner's final decision), the only name shown on nuget.org; the assembly (`PDFStream.NET.dll`)
+   and the C# namespace (`PDFStream.NET`) carry the same name, before any user depends on the library. NuGet looks
+   package IDs up without regard to case but keeps the capitalisation of the first publish for good, which is why
+   the spelling is fixed before the first release. Checked on 2026-11-21: nuget.org has no package with this ID (its
+   package content API, which takes the ID in lowercase, answered 404 Not Found for `pdfstream.net`), so it is free
+   until someone publishes one. (Plain `PDFStream` was also free on 2026-11-20, but it is no longer the chosen ID.)

@@ -1,4 +1,4 @@
-# Using PDFStream.net
+# Using PDFStream.NET
 
 This guide covers everything the library does: the three print calls, every print option, every result
 status with the exact message it carries, and the behaviour that is worth knowing before you rely on it in
@@ -9,17 +9,17 @@ Windows services, scheduled tasks and IIS, read [services-and-iis.md](services-a
 
 - Windows 10 or Windows Server 2016, or newer.
 - A project that targets a Windows framework: `net8.0-windows`, `net10.0-windows` or newer. A project that
-  targets plain `net8.0` cannot reference the `PDFStream.net` package, because printing goes through the Windows
+  targets plain `net8.0` cannot reference the `PDFStream.NET` package, because printing goes through the Windows
   print system.
 - Nothing else on the machine: no Adobe Reader, no PDF viewer, no licence key. The PDF engine (PDFium) comes
   with the package for 64-bit (x64), 32-bit (x86) and Arm64 Windows, and your build picks the right one.
-- The NuGet package is `PDFStream.net` (`dotnet add package PDFStream.net`); in code you write
-  `using PDFStream.net;`.
+- The NuGet package is `PDFStream.NET` (`dotnet add package PDFStream.NET`); in code you write
+  `using PDFStream.NET;`.
 
 ## The three calls
 
 ```csharp
-using PDFStream.net;
+using PDFStream.NET;
 
 PrintResult fromFile   = PdfPrinter.Print(@"C:\Slips\slip-1042.pdf", options);
 PrintResult fromStream = PdfPrinter.Print(stream, options);   // read from its current position to the end
@@ -154,9 +154,9 @@ back of the last sheet of the previous copy. Print one copy per call if that mat
 ## Passwords and "printing not allowed"
 
 A PDF can carry an *open* password (needed to read it) and an *owner* password with permissions such as
-"printing not allowed". PDFStream.net needs the open password when there is one. Owner permissions are ignored:
+"printing not allowed". PDFStream.NET needs the open password when there is one. Owner permissions are ignored:
 a PDF that says "printing not allowed" prints anyway, which is what server automation expects. Do not use
-PDFStream.net to enforce a document's permissions.
+PDFStream.NET to enforce a document's permissions.
 
 ## Printing to a file
 
@@ -210,13 +210,13 @@ a review). A job stopped between pages ends normally, so the pages already sent 
 Read this before you print PDFs that come from outside your organisation (uploads, e-mail, customer portals).
 
 - **PDFium runs inside your process, without a sandbox.** It is the PDF engine of Chrome, but Chrome runs it in
-  a sandboxed process of its own; PDFStream.net calls it directly in yours. A malformed or deliberately hostile PDF
+  a sandboxed process of its own; PDFStream.NET calls it directly in yours. A malformed or deliberately hostile PDF
   that triggers a memory fault inside PDFium ends the whole process at once: .NET cannot catch it, no
   `PrintResult` is returned, and a Windows service simply stops (its recovery settings can restart it).
 - **Print untrusted PDFs in a separate worker process.** Run the print call in a small child process (one per
   job, or a long-lived worker that you start again when it dies) and treat a worker that disappears as a failed
   job. A bad file then costs one job instead of your service.
-- **One hung printer driver stalls every print in the process.** PDFium is not thread-safe, so PDFStream.net holds
+- **One hung printer driver stalls every print in the process.** PDFium is not thread-safe, so PDFStream.NET holds
   one lock for the whole process around every PDFium call, including drawing a page onto the printer, which
   runs inside the printer driver. A driver that hangs while a page is drawn keeps that lock, and every other
   print in the same process waits behind it. A worker process per printer (or per job) contains this as well.
@@ -229,7 +229,7 @@ Read this before you print PDFs that come from outside your organisation (upload
   opened and between pages. It cannot interrupt a page that is being drawn, a driver that hangs, the opening
   of a very large PDF, or the first page with form fields of a document, whose one engine call copies every
   form page of the job (see [Several threads at once](#several-threads-at-once)).
-- **Security fixes in PDFium** reach PDFStream.net through updates of the `bblanchon.PDFium.Win32` package it
+- **Security fixes in PDFium** reach PDFStream.NET through updates of the `bblanchon.PDFium.Win32` package it
   depends on. To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
 ## Several threads at once
@@ -257,11 +257,11 @@ refused with a message naming the cause. A printer that only *reports* Offline i
 
 Filled-in form fields print: text fields, checkboxes, radio buttons, lists and the other fields of an
 ordinary PDF form (an AcroForm), with the values they hold. PDFium, the PDF engine, never draws form fields
-when it draws a page. So when the first page with fields is about to be printed, PDFStream.net copies all the pages
+when it draws a page. So when the first page with fields is about to be printed, PDFStream.NET copies all the pages
 with fields that the print call prints, in one go, within its own copy of the PDF in memory, draws the fields
 into each copy exactly as they print, and prints the copies instead of the pages. A copy keeps everything its
 page shows, including fonts, images and page sizes it takes from elsewhere in the PDF. Before a copy is used,
-PDFStream.net checks that it carries all of the page's fields and looks exactly like the page. If it does not
+PDFStream.NET checks that it carries all of the page's fields and looks exactly like the page. If it does not
 (this happens on a page with layers that the PDF switches off, because the copy's layers are not the ones the
 PDF's layer settings name), the fields are drawn into the page itself instead, which keeps those layers off the
 paper. Your file or byte array is never changed, and pages without fields are drawn untouched.
@@ -273,7 +273,7 @@ paper. Your file or byte array is never changed, and pages without fields are dr
   `NeedAppearances` setting, which some form-filling tools set instead of writing the appearance), gets an
   appearance built by PDFium from its value first. No form scripts run, so a value that a script would format
   (a date or currency format, for example) prints as it is stored.
-- **XFA forms are not supported.** The PDFium build PDFStream.net ships is built without XFA. A form made only of
+- **XFA forms are not supported.** The PDFium build PDFStream.NET ships is built without XFA. A form made only of
   XFA (a "dynamic" form from Adobe LiveCycle or AEM Designer) has no ordinary fields to print, so only the page
   content prints, which for such forms is often a single "Please wait..." page. A form that carries both kinds
   prints its ordinary fields. Save or print such a form to a plain PDF first.
@@ -292,7 +292,7 @@ paper. Your file or byte array is never changed, and pages without fields are dr
   reported as an error: the print succeeds as usual.
 - **Form printing relies on a PDFium function marked experimental.** The copies are made with
   `FPDF_ImportPagesByIndex`, which PDFium marks as experimental. It has been tested only with the PDFium build
-  PDFStream.net depends on (160.0.8165, from the `bblanchon.PDFium.Win32` package). If your application uses another
+  PDFStream.NET depends on (160.0.8165, from the `bblanchon.PDFium.Win32` package). If your application uses another
   `pdfium.dll` in which that function is missing or fails, the fields are drawn into each page itself instead:
   they still print, but a page that takes fonts or images from the PDF's page tree prints without them.
 - **Known limitation: pages that share one content array.** In a PDF with three or more form pages that share
