@@ -33,7 +33,7 @@
   <PropertyGroup Label="Identity and licence">
     <Authors>P4 Software</Authors>
     <Company>P4 Software</Company>
-    <Product>PDFStream.net</Product>
+    <Product>PDFStream.NET</Product>
     <Copyright>Copyright (c) 2026 P4 Software</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <!--
@@ -41,7 +41,7 @@
       candidate 1.0.0-rc.1 (the owner's decision); the stable 1.0.0 follows once the remaining manual release
       checklist rows are verified. A NuGet version is permanent, so this must be exact. Setting it here, in the
       file every build reads, makes a local `dotnet pack` and the CI pack give the same
-      PDFStream.net.1.0.0-rc.1.nupkg with no command-line property. The SDK derives from it:
+      PDFStream.NET.1.0.0-rc.1.nupkg with no command-line property. The SDK derives from it:
         PackageVersion / nuspec version  1.0.0-rc.1
         AssemblyVersion and FileVersion  1.0.0.0 (the prerelease suffix is not part of them)
         InformationalVersion             1.0.0-rc.1, plus "+<commit hash>" when the build is inside a git

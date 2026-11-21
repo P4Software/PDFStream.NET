@@ -1,4 +1,4 @@
-# Continuous integration for PDFStream.net.
+# Continuous integration for PDFStream.NET.
 #
 # On every push and pull request this workflow builds the solution, runs the tests for both target
 # frameworks (net8.0-windows and net10.0-windows), packs the NuGet package and publishes the test-print
@@ -86,14 +86,14 @@ jobs:
 
       - name: Test (net8.0-windows)
         run: >-
-          dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj
+          dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj
           --framework net8.0-windows --configuration Release --no-build
           --results-directory artifacts/test-results
           --report-xunit-trx --report-xunit-trx-filename net8.0-windows.trx
 
       - name: Test (net10.0-windows)
         run: >-
-          dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj
+          dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj
           --framework net10.0-windows --configuration Release --no-build
           --results-directory artifacts/test-results
           --report-xunit-trx --report-xunit-trx-filename net10.0-windows.trx
@@ -138,7 +138,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Pack the NuGet package
-        run: dotnet pack src/PDFStream.net/PDFStream.net.csproj --configuration Release --no-build --output artifacts/package
+        run: dotnet pack src/PDFStream.NET/PDFStream.NET.csproj --configuration Release --no-build --output artifacts/package
 
       # Fails the run if the package lost its licence, notices, readme, metadata or PDFium dependency, or
       # picked up a file type that has no business in it (keys, certificates, settings, scripts).
@@ -149,33 +149,33 @@ jobs:
           # on nuget.org is permanent, so the check pins it exactly. Change it together with that file when a new
           # version is released.
           $expectedVersion = '1.0.0-rc.1'
-          # The package id, the assembly and the namespace are all PDFStream.net, so the file is
-          # PDFStream.net.<version>.nupkg and its manifest PDFStream.net.nuspec. Exactly one must exist.
-          $packages = @(Get-ChildItem artifacts/package -Filter 'PDFStream.net.*.nupkg' | Where-Object { $_.Name -notlike '*.snupkg' })
-          if ($packages.Count -ne 1) { throw "Expected one PDFStream.net.$expectedVersion.nupkg, found $($packages.Count): $($packages.Name -join ', ')" }
-          if ($packages[0].Name -cne "PDFStream.net.$expectedVersion.nupkg") { throw "The package file is '$($packages[0].Name)', not PDFStream.net.$expectedVersion.nupkg" }
+          # The package id, the assembly and the namespace are all PDFStream.NET, so the file is
+          # PDFStream.NET.<version>.nupkg and its manifest PDFStream.NET.nuspec. Exactly one must exist.
+          $packages = @(Get-ChildItem artifacts/package -Filter 'PDFStream.NET.*.nupkg' | Where-Object { $_.Name -notlike '*.snupkg' })
+          if ($packages.Count -ne 1) { throw "Expected one PDFStream.NET.$expectedVersion.nupkg, found $($packages.Count): $($packages.Name -join ', ')" }
+          if ($packages[0].Name -cne "PDFStream.NET.$expectedVersion.nupkg") { throw "The package file is '$($packages[0].Name)', not PDFStream.NET.$expectedVersion.nupkg" }
           $package = $packages[0]
           $zip = [IO.Compression.ZipFile]::OpenRead($package.FullName)
           try {
             $entries = @($zip.Entries | ForEach-Object { $_.FullName })
-            $manifest = $zip.Entries | Where-Object { $_.FullName -eq 'PDFStream.net.nuspec' }
-            if (-not $manifest) { throw 'The package has no PDFStream.net.nuspec.' }
+            $manifest = $zip.Entries | Where-Object { $_.FullName -ceq 'PDFStream.NET.nuspec' }
+            if (-not $manifest) { throw 'The package has no PDFStream.NET.nuspec.' }
             $reader = [IO.StreamReader]::new($manifest.Open())
             [xml]$nuspec = $reader.ReadToEnd()
             $reader.Dispose()
           } finally { $zip.Dispose() }
           $problems = @()
-          foreach ($required in 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'lib/net8.0-windows7.0/PDFStream.net.dll', 'lib/net10.0-windows7.0/PDFStream.net.dll') {
-            if ($entries -notcontains $required) { $problems += "missing file: $required" }
+          foreach ($required in 'LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'lib/net8.0-windows7.0/PDFStream.NET.dll', 'lib/net10.0-windows7.0/PDFStream.NET.dll') {
+            if ($entries -cnotcontains $required) { $problems += "missing file: $required" }
           }
           $metadata = $nuspec.package.metadata
-          if ($metadata.id -cne 'PDFStream.net') { $problems += "the package id is '$($metadata.id)', not PDFStream.net" }
-          if ($metadata.title -cne 'PDFStream.net') { $problems += "the package title is '$($metadata.title)', not PDFStream.net" }
+          if ($metadata.id -cne 'PDFStream.NET') { $problems += "the package id is '$($metadata.id)', not PDFStream.NET" }
+          if ($metadata.title -cne 'PDFStream.NET') { $problems += "the package title is '$($metadata.title)', not PDFStream.NET" }
           if ($metadata.version -cne $expectedVersion) { $problems += "the package version is '$($metadata.version)', not $expectedVersion" }
           if ($metadata.license.'#text' -ne 'MIT') { $problems += 'the licence expression is not MIT' }
           if ($metadata.readme -ne 'README.md') { $problems += 'the package readme is not README.md' }
           if ($metadata.authors -ne 'P4 Software') { $problems += 'the authors are not P4 Software' }
-          if ($metadata.repository.url -ne 'https://github.com/P4Software/PDFStream.net') { $problems += 'the repository URL is missing or wrong' }
+          if ($metadata.repository.url -cne 'https://github.com/P4Software/PDFStream.NET') { $problems += 'the repository URL is missing or wrong' }
           foreach ($group in @($metadata.dependencies.group)) {
             $pdfium = @($group.dependency | Where-Object { $_.id -ceq 'bblanchon.PDFium.Win32' })
             if ($pdfium.Count -ne 1) { $problems += "$($group.targetFramework) does not depend on bblanchon.PDFium.Win32 (pdfium.dll)" }
@@ -186,12 +186,12 @@ jobs:
           if ($unexpected.Count -gt 0) { $problems += "unexpected files: $($unexpected -join ', ')" }
           "Package: $($package.Name)"; $entries | Sort-Object | ForEach-Object { "  $_" }
           if ($problems.Count -gt 0) { $problems | ForEach-Object { "::error title=Package check::$_" }; exit 1 }
-          'The PDFStream.net package has the licence, the third-party notices, the readme, the metadata and the PDFium dependency.'
+          'The PDFStream.NET package has the licence, the third-party notices, the readme, the metadata and the PDFium dependency.'
 
       - name: Upload the NuGet package
         uses: actions/upload-artifact@v7
         with:
-          name: PDFStream.net-nuget-package
+          name: PDFStream.NET-nuget-package
           path: artifacts/package
           if-no-files-found: error
 
@@ -199,7 +199,7 @@ jobs:
       # machine without .NET installed. Not trimmed: the settings reader relies on reflection.
       - name: Publish the test-print sample (win-x64, self-contained, single file)
         run: >-
-          dotnet publish samples/PDFStream.net.TestPrint/PDFStream.net.TestPrint.csproj
+          dotnet publish samples/PDFStream.NET.TestPrint/PDFStream.NET.TestPrint.csproj
           --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded
           -p:PublishDocumentationFiles=false
@@ -208,6 +208,6 @@ jobs:
       - name: Upload the test-print sample
         uses: actions/upload-artifact@v7
         with:
-          name: PDFStream.net.TestPrint-win-x64
+          name: PDFStream.NET.TestPrint-win-x64
           path: artifacts/testprint
           if-no-files-found: error

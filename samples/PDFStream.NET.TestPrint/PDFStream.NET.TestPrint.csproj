@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Language, nullable, XML documentation and licence settings come from Directory.Build.props. -->
+
+  <PropertyGroup>
+    <!--
+      The sample targets net10.0-windows only (unlike the library, which also targets net8.0-windows):
+      it is a demonstration program for the first real user, not something other projects build on.
+      Setting the property here replaces the two-target list from Directory.Build.props.
+    -->
+    <TargetFrameworks>net10.0-windows</TargetFrameworks>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>PDFStream.NET.TestPrint</RootNamespace>
+    <AssemblyName>PDFStream.NET.TestPrint</AssemblyName>
+    <Description>Double-click test-print program for PDFStream.NET. Reads settings.json next to the program, checks everything and, only when asked to, prints a PDF.</Description>
+    <!-- A demonstration program, never published as a NuGet package. -->
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup Label="Licence notices next to the exe">
+    <!--
+      The published sample is one self-contained exe that carries the .NET runtime and pdfium.dll, so the
+      licence texts must travel with it: LICENSE (PDFStream.NET, MIT) and THIRD-PARTY-NOTICES.md (PDFium and the
+      libraries compiled into it, and the .NET runtime). Both are linked from the repository root and copied to
+      the build and the publish output. ExcludeFromSingleFile keeps them as files beside the exe, where a person
+      can open them, instead of hidden inside the single-file bundle.
+    -->
+    <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <Content Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The sample uses the library exactly as a customer would, through its public API only. It does
+      not get InternalsVisibleTo access, so it also works as documentation by example.
+    -->
+    <ProjectReference Include="..\..\src\PDFStream.NET\PDFStream.NET.csproj" />
+  </ItemGroup>
+</Project>
