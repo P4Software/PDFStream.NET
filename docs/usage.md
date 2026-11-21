@@ -9,9 +9,12 @@ Windows services, scheduled tasks and IIS, read [services-and-iis.md](services-a
 
 - Windows 10 or Windows Server 2016, or newer.
 - A project that targets a Windows framework: `net8.0-windows`, `net10.0-windows` or newer. A project that
-  targets plain `net8.0` cannot reference the package, because printing goes through the Windows print system.
+  targets plain `net8.0` cannot reference the `PDFStream.net` package, because printing goes through the Windows
+  print system.
 - Nothing else on the machine: no Adobe Reader, no PDF viewer, no licence key. The PDF engine (PDFium) comes
   with the package for 64-bit (x64), 32-bit (x86) and Arm64 Windows, and your build picks the right one.
+- The NuGet package is `PDFStream.net` (`dotnet add package PDFStream.net`); in code the namespace is
+  `PDFStream`.
 
 ## The three calls
 

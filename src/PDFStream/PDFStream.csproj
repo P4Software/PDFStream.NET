@@ -13,7 +13,14 @@
     own repository information (the commit the package was built from) is all the package carries.
   -->
   <PropertyGroup Label="NuGet package">
-    <PackageId>PDFStream</PackageId>
+    <!--
+      The package is named PDFStream.net, and that is the only name it shows on nuget.org (id and title). The
+      assembly (PDFStream.dll, from AssemblyName above) and the C# namespace (PDFStream) deliberately keep the
+      name PDFStream, so code still says "using PDFStream;". Do not rename them to match the package: that would
+      break every caller for no gain.
+    -->
+    <PackageId>PDFStream.net</PackageId>
+    <Title>PDFStream.net</Title>
     <PackageTags>pdf;print;printing;printer;silent;pdfium;windows;service</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageProjectUrl>https://github.com/P4Software/PDFStream</PackageProjectUrl>
@@ -43,7 +50,7 @@
       win-arm64. PDFStream calls it through its own P/Invoke declarations in Engine/PdfiumNative.cs.
       See THIRD-PARTY-NOTICES.md for why this package was chosen over the PDFiumCore bindings.
 
-      pdfium.dll is not copied into the PDFStream package: this reference becomes a normal NuGet
+      pdfium.dll is not copied into the PDFStream.net package: this reference becomes a normal NuGet
       dependency, and its runtimes/win-<arch>/native folders give a consuming app the pdfium.dll for its
       processor with no extra step (checked with a separate consumer app for win-x64, win-x86, win-arm64
       and a build with no runtime identifier, on net8.0-windows and net10.0-windows; see CONTRIBUTING.md).

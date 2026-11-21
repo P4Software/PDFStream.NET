@@ -74,7 +74,7 @@ A web application prints as its application pool's identity.
 
 ## 32-bit and 64-bit
 
-The program must load the `pdfium.dll` built for the processor mode it runs in. The package brings all three
+The program must load the `pdfium.dll` built for the processor mode it runs in. The `PDFStream.net` package brings all three
 (x64, x86 and Arm64) and your build places the right one:
 
 - **A build or publish for one runtime identifier** (for example `-r win-x64` or `-r win-x86`) puts that

@@ -50,8 +50,9 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   commented `settings.json` next to the exe (created on the first run), lists the installed printers,
   and does a dry run by default; `ReallyPrint` set to `true` really prints. It always waits for a key
   press so the result can be read, uses only the public API, and accepts paths pasted with quote marks.
-- NuGet package metadata: the README as the package page, the MIT licence expression, the repository and
-  project address, tags, and `LICENSE` and `THIRD-PARTY-NOTICES.md` inside the package.
+- NuGet package metadata: the package id and title `PDFStream.net`, the README as the package page, the MIT
+  licence expression, the repository and project address, tags, and `LICENSE` and `THIRD-PARTY-NOTICES.md`
+  inside the package.
 - Documentation: `docs/usage.md`, `docs/services-and-iis.md`, `docs/troubleshooting.md` and `CONTRIBUTING.md`.
 - CI (`.github/workflows/ci.yml`): on every push and pull request, build and test both frameworks on
   `windows-latest`, report whether *Microsoft Print to PDF* exists and how many tests were skipped, pack and
@@ -60,6 +61,10 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
   publishes nothing and uses no secrets.
 
 ### Changed
+
+- The NuGet package is named `PDFStream.net` (`dotnet add package PDFStream.net`); that is the only name it
+  shows on nuget.org. The assembly (`PDFStream.dll`) and the namespace (`PDFStream`) keep the name
+  `PDFStream`, so code still says `using PDFStream;`.
 
 - The C# language version is pinned to 12.0 instead of "latest", so the language no longer changes with the
   installed SDK. C# 12 is the newest version the .NET 8 SDK supports.

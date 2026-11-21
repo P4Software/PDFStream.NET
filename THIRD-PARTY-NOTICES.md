@@ -96,7 +96,7 @@ The sample's build and publish output put `LICENSE` and this file next to the ex
 The test project uses xUnit.net v3 (Apache-2.0), Microsoft.NET.Test.Sdk (MIT), Microsoft Testing
 Platform (MIT) and PDFsharp **6.2.4** (MIT) with its MIT-licensed dependencies. PDFsharp is pinned to
 exactly 6.2.4 because PDFsharp 6.5.0 and later, including the 7.0 previews, are AGPL-3.0-only. None of
-these is part of the PDFStream package.
+these is part of the PDFStream.net package.
 
 ---
 

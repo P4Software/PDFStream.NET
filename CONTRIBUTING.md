@@ -76,9 +76,13 @@ dotnet pack src/PDFStream/PDFStream.csproj --configuration Release --output arti
 dotnet publish samples/PDFStream.TestPrint/PDFStream.TestPrint.csproj --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:PublishDocumentationFiles=false --output artifacts/testprint
 ```
 
+The package is named `PDFStream.net`, so `dotnet pack` writes `artifacts/package/PDFStream.net.<version>.nupkg`.
+The assembly (`PDFStream.dll`) and the namespace (`PDFStream`) keep the name `PDFStream`.
+
 The package does not contain `pdfium.dll` itself: it depends on the `bblanchon.PDFium.Win32` package, whose
 `runtimes/win-x64`, `win-x86` and `win-arm64` folders give a consuming app the right copy. If you change
-anything about packaging, check it from a separate consumer app outside the repository: add
+anything about packaging, check it from a separate consumer app outside the repository: reference the package
+with `<PackageReference Include="PDFStream.net" Version="<version>" />`, add
 `artifacts/package` as a package source in that app's `nuget.config`, point `NUGET_PACKAGES` at an empty
 folder (so an older copy of the package in your cache cannot stand in for the new one), build and publish it
 with `-r win-x64`, `-r win-x86`, `-r win-arm64` and with no runtime identifier, for `net8.0-windows` and

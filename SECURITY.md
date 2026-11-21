@@ -28,7 +28,7 @@ advisory unless you prefer not to be named.
 | Older releases | No: update to the latest release |
 | Previews and builds from source | No: use the latest release, or the latest commit on `main` |
 
-PDFStream has not had its first release on NuGet yet. Until it has, fixes land on `main` only.
+PDFStream has not had its first release on NuGet (as the package `PDFStream.net`) yet. Until it has, fixes land on `main` only.
 
 ## PDFium, the PDF engine
 

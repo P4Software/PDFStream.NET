@@ -145,12 +145,17 @@ jobs:
       - name: Check the package contents
         run: |
           Add-Type -AssemblyName System.IO.Compression.FileSystem
-          $package = Get-ChildItem artifacts/package -Filter 'PDFStream.*.nupkg' | Select-Object -First 1
-          if (-not $package) { throw 'No PDFStream package was produced.' }
+          # The package id is PDFStream.net (the assembly and namespace stay PDFStream), so the file is
+          # PDFStream.net.<version>.nupkg and its manifest PDFStream.net.nuspec. Exactly one must exist.
+          $packages = @(Get-ChildItem artifacts/package -Filter 'PDFStream.net.*.nupkg' | Where-Object { $_.Name -notlike '*.snupkg' })
+          if ($packages.Count -ne 1) { throw "Expected one PDFStream.net.<version>.nupkg, found $($packages.Count): $($packages.Name -join ', ')" }
+          $package = $packages[0]
           $zip = [IO.Compression.ZipFile]::OpenRead($package.FullName)
           try {
             $entries = @($zip.Entries | ForEach-Object { $_.FullName })
-            $reader = [IO.StreamReader]::new(($zip.Entries | Where-Object { $_.FullName -eq 'PDFStream.nuspec' }).Open())
+            $manifest = $zip.Entries | Where-Object { $_.FullName -eq 'PDFStream.net.nuspec' }
+            if (-not $manifest) { throw 'The package has no PDFStream.net.nuspec.' }
+            $reader = [IO.StreamReader]::new($manifest.Open())
             [xml]$nuspec = $reader.ReadToEnd()
             $reader.Dispose()
           } finally { $zip.Dispose() }
@@ -159,6 +164,8 @@ jobs:
             if ($entries -notcontains $required) { $problems += "missing file: $required" }
           }
           $metadata = $nuspec.package.metadata
+          if ($metadata.id -cne 'PDFStream.net') { $problems += "the package id is '$($metadata.id)', not PDFStream.net" }
+          if ($metadata.title -cne 'PDFStream.net') { $problems += "the package title is '$($metadata.title)', not PDFStream.net" }
           if ($metadata.license.'#text' -ne 'MIT') { $problems += 'the licence expression is not MIT' }
           if ($metadata.readme -ne 'README.md') { $problems += 'the package readme is not README.md' }
           if ($metadata.authors -ne 'P4 Software') { $problems += 'the authors are not P4 Software' }
@@ -170,12 +177,12 @@ jobs:
           if ($unexpected.Count -gt 0) { $problems += "unexpected files: $($unexpected -join ', ')" }
           "Package: $($package.Name)"; $entries | Sort-Object | ForEach-Object { "  $_" }
           if ($problems.Count -gt 0) { $problems | ForEach-Object { "::error title=Package check::$_" }; exit 1 }
-          'The package has the licence, the third-party notices, the readme, the metadata and the PDFium dependency.'
+          'The PDFStream.net package has the licence, the third-party notices, the readme, the metadata and the PDFium dependency.'
 
       - name: Upload the NuGet package
         uses: actions/upload-artifact@v7
         with:
-          name: nuget-package
+          name: PDFStream.net-nuget-package
           path: artifacts/package
           if-no-files-found: error
 

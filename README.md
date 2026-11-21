@@ -1,6 +1,6 @@
 <div align="center">
 
-# PDFStream
+# PDFStream.net
 
 **Free, open-source PDF printing for .NET.**
 Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licence keys, no watermarks.
@@ -17,16 +17,16 @@ Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licen
 > **Status: version 1.0 release candidate.** The library is complete and its automated tests pass, including
 > real prints to *Microsoft Print to PDF* in 64-bit and 32-bit processes. The manual release checklist
 > (physical printers, a Windows service, a scheduled task, Arm64 hardware) is **not complete yet**, and the
-> package is **not on NuGet yet**. PDF to image conversion is planned for version 1.1.
+> package (`PDFStream.net`) is **not on NuGet yet**. PDF to image conversion is planned for version 1.1.
 > See [what has been verified](#what-has-been-verified).
 
-## Why PDFStream?
+## Why PDFStream.net?
 
 Printing a PDF from a .NET application should not need a paid licence, a licence key that expires, or a copy
 of Adobe Reader installed on every server. Yet today most developers either pay for a commercial library or
 fight with the Windows print system themselves.
 
-PDFStream is a small, focused library that does one job well: **take a PDF and print it, silently, on the
+PDFStream.net is a small, focused library that does one job well: **take a PDF and print it, silently, on the
 printer you choose.** It is built by [P4 Software](https://github.com/P4Software) because we needed it for our
 own warehouse software, and we are sharing it so nobody else has to pay for it.
 
@@ -47,11 +47,14 @@ own warehouse software, and we are sharing it so nobody else has to pay for it.
 
 ## Install
 
-PDFStream is not published on NuGet yet. Once it is:
+PDFStream.net is not published on NuGet yet. Once it is:
 
 ```text
-dotnet add package PDFStream
+dotnet add package PDFStream.net
 ```
+
+The package is called `PDFStream.net`; in your code the namespace and the assembly are `PDFStream`
+(`using PDFStream;`, `PDFStream.dll`).
 
 Until then, build the package from this repository (see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream/blob/main/CONTRIBUTING.md)) and add the
 folder it lands in as a package source.
@@ -145,7 +148,9 @@ Run on 2026-11-20 on one Windows 11 x64 machine:
   including real prints to *Microsoft Print to PDF* whose output is checked page by page for ink.
 - The package, from a separate app outside this repository: built and published for win-x64, win-x86 and
   win-arm64 on both frameworks, the right `pdfium.dll` lands next to the app; the x64 and x86 builds printed
-  a two-page PDF to *Microsoft Print to PDF*.
+  a two-page PDF to *Microsoft Print to PDF*. On 2026-11-21, under its name `PDFStream.net`, it was packed and
+  checked again from a separate win-x64 app on `net10.0-windows`, which printed a page to *Microsoft Print to
+  PDF*.
 
 Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream/blob/main/docs/release-checklist.md)): running on an Arm64
 PC, physical printers (duplex, network printers), and printing from a Windows service, a scheduled task
@@ -164,13 +169,13 @@ or IIS.
 
 ## Get involved
 
-PDFStream is open source and built in the open. Bug reports, printer and driver reports and pull requests
+PDFStream.net is open source and built in the open. Bug reports, printer and driver reports and pull requests
 are welcome: open an [issue](https://github.com/P4Software/PDFStream/issues), especially about the printers,
 servers and PDF files that give you trouble today. See [CONTRIBUTING.md](https://github.com/P4Software/PDFStream/blob/main/CONTRIBUTING.md).
 
 ## Licence
 
-PDFStream is free and open source under the [MIT License](https://github.com/P4Software/PDFStream/blob/main/LICENSE), copyright 2026 P4 Software. Use it in
+PDFStream.net is free and open source under the [MIT License](https://github.com/P4Software/PDFStream/blob/main/LICENSE), copyright 2026 P4 Software. Use it in
 personal, commercial and closed-source projects, with no fees and no licence keys. The PDF engine and the
 libraries inside it keep their own permissive licences; see
 [THIRD-PARTY-NOTICES.md](https://github.com/P4Software/PDFStream/blob/main/THIRD-PARTY-NOTICES.md).
