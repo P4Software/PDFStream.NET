@@ -13,6 +13,17 @@ namespace PDFStream.Engine;
 internal delegate int PageFlattener(IntPtr page, int usage);
 
 /// <summary>
+/// Copies one page of a document to a new position in the same document (PDFium's
+/// <c>FPDF_ImportPagesByIndex</c>, with the document as both source and destination, in production). A seam so
+/// tests can make copying fail or change the copy.
+/// </summary>
+/// <param name="document">The document (an FPDF_DOCUMENT); the page is copied within it.</param>
+/// <param name="pageIndex">The page to copy.</param>
+/// <param name="insertAt">Where the copy goes. PDFStream passes the current page count, which appends it.</param>
+/// <returns><see langword="true"/> when PDFium made the copy.</returns>
+internal delegate bool PageCopier(IntPtr document, int pageIndex, int insertAt);
+
+/// <summary>
 /// A PDF opened by PDFium. Every native call is made while holding
 /// <see cref="PdfiumLibrary.Sync"/>, so the document can be used from several threads.
 /// </summary>
@@ -20,34 +31,52 @@ internal delegate int PageFlattener(IntPtr page, int usage);
 /// <para>
 /// Form fields. PDFium's two page-drawing calls never draw form fields (widget annotations), so a filled-in
 /// form would print blank. The first time a page is drawn, PDFStream therefore checks whether it has form
-/// fields and, if it does, makes them part of the page, as they print, in PDFStream's own in-memory copy of
-/// the PDF (the caller's file or bytes are never changed):
+/// fields and, if it does, prepares a printable copy of the page inside PDFStream's own in-memory copy of the
+/// PDF (the caller's file or bytes are never changed):
 /// </para>
 /// <list type="number">
 /// <item>The document's form-fill environment looks at the page and builds the appearances that are not
 /// stored in the file (an annotation without one, or every field when the form says /NeedAppearances), so
-/// nothing that PDFium would draw on the fly is lost by the next step.</item>
-/// <item>The page's visible box is written onto the page itself, because flattening rewrites the MediaBox and
-/// CropBox from the page's own entries and would otherwise turn an inherited box into US Letter.</item>
-/// <item><c>FPDFPage_Flatten</c> with FLAT_PRINT draws every annotation marked for printing into the page
-/// content (fields not marked for printing are left out, as on paper), and the page is loaded again.</item>
+/// nothing that PDFium would draw on the fly is lost when the annotations become page content.</item>
+/// <item>The page is copied to the end of the in-memory document (<c>FPDF_ImportPagesByIndex</c> with the
+/// document as both source and destination). The copy carries, written on itself, what the page inherits
+/// from the page tree (its MediaBox, CropBox, Rotate and Resources), and its own copies of the objects it
+/// uses. The page itself is not flattened: flattening adds its result to the page's own /Resources, creating an
+/// empty one when the page inherits them, and that empty dictionary hides the inherited fonts, images and
+/// XObjects, so the page content that uses them would disappear from the paper.</item>
+/// <item>The copy's visible box is written onto it as its CropBox (flattening rewrites the MediaBox and the
+/// CropBox from the page's own entries), and <c>FPDFPage_Flatten</c> with FLAT_PRINT draws every annotation
+/// marked for printing into the copy's content (fields not marked for printing are left out, as on
+/// paper).</item>
 /// </list>
 /// <para>
-/// The page then draws through the vector path as before, fields included. Pages without form fields are
-/// never touched. If any step fails, the page is drawn as it is (its fields blank, as before this was
-/// added), so preparing a page never makes a print fail. XFA-only forms have no fields of this kind and
-/// still print only their page content; the bundled PDFium is built without XFA.
+/// From then on the copy is drawn in place of the page, through the vector path as before, fields included.
+/// The copy lies after the last page the document reports, so no page index reaches it: <see cref="PageCount"/>
+/// and the page sizes stay those of the PDF. Pages without form fields are never touched. If any step fails,
+/// or the copy is not exactly the size of the page, the page itself is drawn as it is (its fields blank, as
+/// before this was added), so preparing a page never makes a print fail. The cost falls on pages with fields
+/// only: the page is copied and parsed once more, and the copy keeps its own copy of the objects it uses (its
+/// fonts and images, for example) in memory until the document is closed. XFA-only forms have no fields of
+/// this kind and still print only their page content; the bundled PDFium is built without XFA.
 /// </para>
 /// </remarks>
 internal sealed class PdfiumDocument : IPdfDocument
 {
+    /// <summary>A page whose form fields have not been looked at yet (see <see cref="_drawnFrom"/>).</summary>
+    private const int NotPrepared = -1;
+
+    /// <summary>What <see cref="TryCreatePrintableCopy"/> returns when the page itself must be drawn.</summary>
+    private const int NoCopy = -1;
+
     private readonly PdfiumDocumentHandle _handle;
     private readonly PageFlattener _flattenPage;
+    private readonly PageCopier _copyPage;
 
-    // One flag per page, read and written only while holding PdfiumLibrary.Sync. Set the first time a page is
-    // drawn, once it has been checked for form fields (and flattened if it had any), so the work is done once
-    // per page however often the page is drawn (copies, the bitmap fallback).
-    private readonly bool[] _pagePrepared;
+    // For each page the caller can see, which page of PDFium's document is drawn for it: NotPrepared until the
+    // page is first drawn, then the page itself, or the index of its printable copy when it has form fields.
+    // Read and written only while holding PdfiumLibrary.Sync, so the work is done once per page however often
+    // and from however many threads the page is drawn (copies, the bitmap fallback).
+    private readonly int[] _drawnFrom;
 
     /// <summary>
     /// Wraps an open handle. The caller must hold <see cref="PdfiumLibrary.Sync"/>, because the page
@@ -56,12 +85,19 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// <param name="handle">The open document; this object takes ownership of it.</param>
     /// <param name="flattenPage">How a page's annotations are flattened; <see langword="null"/> uses
     /// PDFium's <c>FPDFPage_Flatten</c>. Tests pass one that fails.</param>
-    internal PdfiumDocument(PdfiumDocumentHandle handle, PageFlattener? flattenPage = null)
+    /// <param name="copyPage">How a page with form fields is copied within the document before it is flattened;
+    /// <see langword="null"/> uses PDFium's <c>FPDF_ImportPagesByIndex</c>. Tests pass one that fails.</param>
+    internal PdfiumDocument(PdfiumDocumentHandle handle, PageFlattener? flattenPage = null, PageCopier? copyPage = null)
     {
         _handle = handle;
         _flattenPage = flattenPage ?? PdfiumNative.FPDFPage_Flatten;
+        _copyPage = copyPage ?? CopyWithinDocument;
+
+        // Read once: the printable copies of form pages are added after the last page, and must never become
+        // visible as extra pages.
         PageCount = PdfiumNative.FPDF_GetPageCount(handle.DangerousGetHandle());
-        _pagePrepared = new bool[Math.Max(0, PageCount)];
+        _drawnFrom = new int[Math.Max(0, PageCount)];
+        Array.Fill(_drawnFrom, NotPrepared);
     }
 
     /// <inheritdoc/>
@@ -222,29 +258,33 @@ internal sealed class PdfiumDocument : IPdfDocument
     }
 
     /// <summary>
-    /// Loads a page for drawing, prepares its form fields the first time (see the class remarks), runs
-    /// <paramref name="action"/> on it and always closes it again.
-    /// Must be called while holding <see cref="PdfiumLibrary.Sync"/>.
+    /// Loads what is drawn for a page (the page itself, or its printable copy once it has one), prepares the
+    /// page the first time it is drawn (see the class remarks), runs <paramref name="action"/> on it and always
+    /// closes it again. Must be called while holding <see cref="PdfiumLibrary.Sync"/>.
     /// </summary>
     private void WithPage(int pageIndex, Action<IntPtr> action)
     {
         UseHandle(document =>
         {
-            IntPtr page = LoadPage(document, pageIndex);
+            bool firstDraw = _drawnFrom[pageIndex] == NotPrepared;
+            IntPtr page = LoadPage(document, firstDraw ? pageIndex : _drawnFrom[pageIndex], pageIndex);
             try
             {
-                if (!_pagePrepared[pageIndex])
+                if (firstDraw)
                 {
                     // Marked before the work, so a page whose preparation fails is drawn as it is and not
                     // tried again on every copy.
-                    _pagePrepared[pageIndex] = true;
-                    if (TryFlattenFormFieldsForPrinting(page))
+                    _drawnFrom[pageIndex] = pageIndex;
+
+                    // The page loaded above serves the form-field check, so a page without fields is loaded
+                    // and parsed only once, as before form fields were handled.
+                    int copyIndex = TryCreatePrintableCopy(document, pageIndex, page);
+                    IntPtr copy = copyIndex == NoCopy ? IntPtr.Zero : PdfiumNative.FPDF_LoadPage(document, copyIndex);
+                    if (copy != IntPtr.Zero)
                     {
-                        // Flattening rewrote the page in the document, but the page object loaded above still
-                        // holds the content it parsed before. Load the page again to draw the new content.
+                        _drawnFrom[pageIndex] = copyIndex;
                         PdfiumNative.FPDF_ClosePage(page);
-                        page = IntPtr.Zero;
-                        page = LoadPage(document, pageIndex);
+                        page = copy;
                     }
                 }
 
@@ -252,10 +292,7 @@ internal sealed class PdfiumDocument : IPdfDocument
             }
             finally
             {
-                if (page != IntPtr.Zero)
-                {
-                    PdfiumNative.FPDF_ClosePage(page);
-                }
+                PdfiumNative.FPDF_ClosePage(page);
             }
 
             return 0;
@@ -263,9 +300,12 @@ internal sealed class PdfiumDocument : IPdfDocument
     }
 
     /// <summary>Loads a page or throws the engine's documented "could not draw" exception.</summary>
-    private static IntPtr LoadPage(IntPtr document, int pageIndex)
+    /// <param name="document">The document.</param>
+    /// <param name="index">The page of PDFium's document to load: the page itself or its printable copy.</param>
+    /// <param name="pageIndex">The page the caller asked for, which is the one the message names.</param>
+    private static IntPtr LoadPage(IntPtr document, int index, int pageIndex)
     {
-        IntPtr page = PdfiumNative.FPDF_LoadPage(document, pageIndex);
+        IntPtr page = PdfiumNative.FPDF_LoadPage(document, index);
         if (page == IntPtr.Zero)
         {
             throw new InvalidOperationException($"PDFium could not load page {pageIndex + 1}; the page may be damaged.");
@@ -275,26 +315,27 @@ internal sealed class PdfiumDocument : IPdfDocument
     }
 
     /// <summary>
-    /// If the page has form fields, makes every annotation marked for printing part of the page content (see
-    /// the class remarks for the three steps and why each is needed). Must be called while holding
-    /// <see cref="PdfiumLibrary.Sync"/> and a reference on the handle.
+    /// If the page has form fields, makes a copy of it at the end of the document in which every annotation
+    /// marked for printing is part of the page content (see the class remarks for the three steps and why each
+    /// is needed). Must be called while holding <see cref="PdfiumLibrary.Sync"/> and a reference on the handle.
     /// </summary>
-    /// <param name="page">The loaded page. It is not closed here.</param>
+    /// <param name="document">The document.</param>
+    /// <param name="pageIndex">The page to prepare.</param>
+    /// <param name="page">The page, loaded. It is not closed here, and is drawn as it is when this fails.</param>
     /// <returns>
-    /// <see langword="true"/> when the page content was changed, so the page must be loaded again before it is
-    /// drawn; <see langword="false"/> when the page had no form fields or could not be prepared, in which case
-    /// it is drawn as it is.
+    /// The index of the printable copy, to be drawn in place of the page; or <see cref="NoCopy"/> when the page
+    /// has no form fields or could not be prepared, in which case the page itself is drawn as it is.
     /// </returns>
-    private bool TryFlattenFormFieldsForPrinting(IntPtr page)
+    private int TryCreatePrintableCopy(IntPtr document, int pageIndex, IntPtr page)
     {
         try
         {
-            // Only pages that really carry form fields are changed: every other page is drawn exactly as
+            // Only pages that really carry form fields are prepared: every other page is drawn exactly as
             // PDFium draws it. Checked per page, not from the catalog's /AcroForm, because pages copied out of
             // a form by another tool often keep their fields but lose /AcroForm.
             if (!HasFormFields(page))
             {
-                return false;
+                return NoCopy;
             }
 
             IntPtr environment = _handle.GetOrCreateFormFillEnvironment();
@@ -302,37 +343,84 @@ internal sealed class PdfiumDocument : IPdfDocument
             {
                 // Without the form-fill module, annotations whose appearance PDFium builds only while drawing
                 // would be dropped by flattening. Drawing the page as it is loses only the fields.
-                return false;
+                return NoCopy;
             }
 
-            // Showing the page to the form-fill module and taking it away again builds and stores the missing
-            // appearances; nothing else of the module is used.
+            // Showing the page to the form-fill module and taking it away again builds the missing appearances
+            // and stores them in the annotations, before the copy below copies the annotations; nothing else of
+            // the module is used.
             PdfiumNative.FORM_OnAfterLoadPage(page, environment);
             PdfiumNative.FORM_OnBeforeClosePage(page, environment);
 
-            // Flattening rewrites the MediaBox and CropBox from the page's own entries (a missing MediaBox
-            // becomes US Letter), so write the page's visible box, inherited or not, onto the page first. The
-            // page then keeps exactly its size and position.
-            if (PdfiumNative.FPDF_GetPageBoundingBox(page, out PdfiumNative.FsRectF box) == 0)
+            // The copy goes after every page there is, so it can never take the place of a page the caller sees
+            // (PageCount was read when the document was opened and does not change).
+            int copyIndex = PdfiumNative.FPDF_GetPageCount(document);
+            if (!_copyPage(document, pageIndex, copyIndex)
+                || PdfiumNative.FPDF_GetPageCount(document) != copyIndex + 1
+                || !HaveSameSize(document, pageIndex, copyIndex))
             {
-                return false;
+                return NoCopy;
             }
 
-            PdfiumNative.FPDFPage_SetCropBox(page, box.Left, box.Bottom, box.Right, box.Top);
-            if (PdfiumNative.FPDFPage_GetMediaBox(page, out _, out _, out _, out _) == 0)
+            IntPtr copy = PdfiumNative.FPDF_LoadPage(document, copyIndex);
+            if (copy == IntPtr.Zero)
             {
-                PdfiumNative.FPDFPage_SetMediaBox(page, box.Left, box.Bottom, box.Right, box.Top);
+                return NoCopy;
             }
 
-            return _flattenPage(page, PdfiumNative.FlattenForPrint) == PdfiumNative.FlattenSuccess;
+            int flattened;
+            try
+            {
+                // Flattening rewrites the MediaBox and CropBox from the page's own entries (a missing MediaBox
+                // becomes US Letter). The copy already carries its boxes, inherited ones included; writing its
+                // visible box onto it as well keeps flattening from changing what part of the page is shown.
+                if (PdfiumNative.FPDF_GetPageBoundingBox(copy, out PdfiumNative.FsRectF box) == 0)
+                {
+                    return NoCopy;
+                }
+
+                PdfiumNative.FPDFPage_SetCropBox(copy, box.Left, box.Bottom, box.Right, box.Top);
+                if (PdfiumNative.FPDFPage_GetMediaBox(copy, out _, out _, out _, out _) == 0)
+                {
+                    PdfiumNative.FPDFPage_SetMediaBox(copy, box.Left, box.Bottom, box.Right, box.Top);
+                }
+
+                flattened = _flattenPage(copy, PdfiumNative.FlattenForPrint);
+            }
+            finally
+            {
+                // The copy loaded here still holds the content it parsed before flattening; the caller loads
+                // the copy again to draw the flattened content.
+                PdfiumNative.FPDF_ClosePage(copy);
+            }
+
+            // The copy replaces the page only if it is still exactly the page's size: whatever is printed must
+            // land where the page would have.
+            return flattened == PdfiumNative.FlattenSuccess && HaveSameSize(document, pageIndex, copyIndex) ? copyIndex : NoCopy;
         }
         catch (Exception)
         {
             // Preparing a page is an improvement, never a requirement: whatever goes wrong here (for example
             // a pdfium.dll without one of these functions), the page is drawn as it is and the print goes on.
-            return false;
+            return NoCopy;
         }
     }
+
+    /// <summary>
+    /// Copies a page within its own document with PDFium's page import, the production <see cref="PageCopier"/>.
+    /// The import writes the page's inherited attributes onto the copy and gives the copy its own copies of the
+    /// objects the page uses, so what flattening changes in the copy (its resources, the appearance streams of
+    /// its annotations) is not shared with the page itself.
+    /// </summary>
+    private static bool CopyWithinDocument(IntPtr document, int pageIndex, int insertAt) =>
+        PdfiumNative.FPDF_ImportPagesByIndex(document, document, [pageIndex], 1, insertAt) != 0;
+
+    /// <summary>Whether two pages of the document have exactly the same size as displayed (rotation included).</summary>
+    private static bool HaveSameSize(IntPtr document, int first, int second) =>
+        PdfiumNative.FPDF_GetPageSizeByIndexF(document, first, out PdfiumNative.FsSizeF a) != 0
+        && PdfiumNative.FPDF_GetPageSizeByIndexF(document, second, out PdfiumNative.FsSizeF b) != 0
+        && a.Width == b.Width
+        && a.Height == b.Height;
 
     /// <summary>Whether the loaded page has at least one widget (form field) annotation.</summary>
     private static bool HasFormFields(IntPtr page)

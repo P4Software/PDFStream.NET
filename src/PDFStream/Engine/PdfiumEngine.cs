@@ -7,14 +7,19 @@ namespace PDFStream.Engine;
 internal sealed class PdfiumEngine : IPdfEngine
 {
     private readonly PageFlattener? _flattenPage;
+    private readonly PageCopier? _copyPage;
 
     /// <summary>Creates the engine.</summary>
-    /// <param name="flattenPage">How the documents it opens flatten a page with form fields;
+    /// <param name="flattenPage">How the documents it opens flatten the copy of a page with form fields;
     /// <see langword="null"/> (the default, and what PDFStream uses) means PDFium's own <c>FPDFPage_Flatten</c>.
     /// Tests pass one that fails, to show that a page that cannot be flattened still prints.</param>
-    internal PdfiumEngine(PageFlattener? flattenPage = null)
+    /// <param name="copyPage">How the documents it opens copy a page with form fields before flattening it;
+    /// <see langword="null"/> (the default, and what PDFStream uses) means PDFium's own
+    /// <c>FPDF_ImportPagesByIndex</c>. Tests pass one that fails, to show that such a page still prints.</param>
+    internal PdfiumEngine(PageFlattener? flattenPage = null, PageCopier? copyPage = null)
     {
         _flattenPage = flattenPage;
+        _copyPage = copyPage;
     }
 
     /// <inheritdoc/>
@@ -56,7 +61,7 @@ internal sealed class PdfiumEngine : IPdfEngine
 
             try
             {
-                document = new PdfiumDocument(handle, _flattenPage);
+                document = new PdfiumDocument(handle, _flattenPage, _copyPage);
             }
             catch
             {

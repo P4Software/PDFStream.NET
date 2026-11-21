@@ -5,7 +5,7 @@ namespace PDFStream.Engine;
 /// <summary>
 /// P/Invoke declarations for the handful of PDFium functions PDFStream uses, written from the
 /// public PDFium headers (<c>fpdfview.h</c>, <c>fpdf_formfill.h</c>, <c>fpdf_flatten.h</c>,
-/// <c>fpdf_annot.h</c> and <c>fpdf_transformpage.h</c>, BSD-3-Clause) of the bundled build.
+/// <c>fpdf_annot.h</c>, <c>fpdf_transformpage.h</c> and <c>fpdf_ppo.h</c>, BSD-3-Clause) of the bundled build.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -36,8 +36,8 @@ internal static class PdfiumNative
     /// FPDF_ANNOT: draw the page's annotations that have an appearance (stamps, comments, shapes).
     /// It does NOT draw form fields: PDFium's two page-drawing calls (<see cref="FPDF_RenderPage"/> and
     /// <see cref="FPDF_RenderPageBitmap"/>) never draw widget annotations, whatever the flags. Only the
-    /// form-fill module's own drawing call or flattening the fields into the page does;
-    /// <see cref="PdfiumDocument"/> flattens them (see its remarks).
+    /// form-fill module's own drawing call (which draws only into a bitmap) or flattening the fields into the
+    /// page content does; <see cref="PdfiumDocument"/> flattens them into a copy of the page (see its remarks).
     /// </summary>
     public const int RenderAnnotations = 0x01;
 
@@ -246,4 +246,20 @@ internal static class PdfiumNative
     /// <summary>void FPDFPage_SetCropBox(FPDF_PAGE page, float left, float bottom, float right, float top).</summary>
     [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
     public static extern void FPDFPage_SetCropBox(IntPtr page, float left, float bottom, float right, float top);
+
+    /// <summary>
+    /// FPDF_BOOL FPDF_ImportPagesByIndex(FPDF_DOCUMENT dest_doc, FPDF_DOCUMENT src_doc, const int* page_indices,
+    /// unsigned long length, int index) (<c>fpdf_ppo.h</c>, marked experimental). Inserts copies of the listed
+    /// pages of <paramref name="source"/> into <paramref name="destination"/> before page <paramref name="index"/>
+    /// (the page count appends them). Returns false if a page index is invalid.
+    /// </summary>
+    /// <remarks>
+    /// PDFStream passes the same document as both, to copy a page with form fields to the end of its own
+    /// in-memory document. The copy gets the attributes the page inherits from the page tree written onto itself,
+    /// and its own copies of the objects the page refers to (checked with the bundled build: a copy of a page that
+    /// inherits its MediaBox, Resources and Rotate draws the same pixels as the page, and has a MediaBox of its
+    /// own). <c>unsigned long</c> is 32 bits on Windows, for x86 and x64 alike.
+    /// </remarks>
+    [DllImport(Library, CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+    public static extern int FPDF_ImportPagesByIndex(IntPtr destination, IntPtr source, int[] pageIndices, uint length, int index);
 }

@@ -61,6 +61,30 @@ public sealed record FormFixtureOptions
     /// colours.
     /// </summary>
     public bool WithMarkupAnnotations { get; init; }
+
+    /// <summary>
+    /// When <see langword="true"/>, the page content also draws three black squares through named entries of the
+    /// page's /Resources: a form XObject (<see cref="FormFixtureFactory.ResourceXObject"/>), an image
+    /// (<see cref="FormFixtureFactory.ResourceImage"/>) and the one glyph of a Type3 font
+    /// (<see cref="FormFixtureFactory.ResourceFontGlyph"/>). With <see cref="InheritPageAttributes"/> those
+    /// resources are inherited from the /Pages node like the rest.
+    /// </summary>
+    /// <remarks>
+    /// Each square shows whether its resource was found when the page was drawn: PDFium skips an XObject or an
+    /// image it cannot find, and replaces a font it cannot find with Helvetica, whose letter A covers only a
+    /// small part of the square. (A missing Helvetica, the font of the page's own text, falls back to Helvetica
+    /// and so looks the same, which is why these marks are needed.)
+    /// </remarks>
+    public bool WithResourceMarks { get; init; }
+
+    /// <summary>
+    /// When <see langword="true"/>, the document starts with an extra page without form fields, of a different
+    /// size (<see cref="FormFixtureFactory.LeadingPageWidthPoints"/> x
+    /// <see cref="FormFixtureFactory.LeadingPageHeightPoints"/>), that draws one black square
+    /// (<see cref="FormFixtureFactory.LeadingPageMark"/>). The form page becomes page 2 (index 1). The extra page
+    /// carries all its own attributes, so it inherits nothing from the /Pages node.
+    /// </summary>
+    public bool WithLeadingPlainPage { get; init; }
 }
 
 /// <summary>
@@ -87,13 +111,21 @@ public readonly record struct PdfRect(float Left, float Bottom, float Right, flo
     /// edge), so that a fully inked rectangle counts as fully dark.
     /// </summary>
     /// <param name="dpi">The resolution of the rendering.</param>
-    public Rectangle ToInnerPixels(int dpi)
+    public Rectangle ToInnerPixels(int dpi) => ToInnerPixels(dpi, FormFixtureFactory.PageHeightPoints);
+
+    /// <summary>
+    /// As <see cref="ToInnerPixels(int)"/>, for an unrotated, uncropped page <paramref name="pageHeightPoints"/>
+    /// tall (the leading plain page is not as tall as the form page).
+    /// </summary>
+    /// <param name="dpi">The resolution of the rendering.</param>
+    /// <param name="pageHeightPoints">The height of the page the rectangle is on, in points.</param>
+    public Rectangle ToInnerPixels(int dpi, float pageHeightPoints)
     {
         double scale = dpi / 72.0;
         int left = (int)Math.Round(Left * scale) + 2;
-        int top = (int)Math.Round((FormFixtureFactory.PageHeightPoints - Top) * scale) + 2;
+        int top = (int)Math.Round((pageHeightPoints - Top) * scale) + 2;
         int right = (int)Math.Round(Right * scale) - 2;
-        int bottom = (int)Math.Round((FormFixtureFactory.PageHeightPoints - Bottom) * scale) - 2;
+        int bottom = (int)Math.Round((pageHeightPoints - Bottom) * scale) - 2;
         return Rectangle.FromLTRB(left, top, right, bottom);
     }
 }
@@ -140,6 +172,24 @@ public static class FormFixtureFactory
     /// <summary>The crop box used with <see cref="FormFixtureOptions.WithCropBox"/>.</summary>
     public static readonly PdfRect CropBox = new(10, 10, 390, 290);
 
+    /// <summary>The square a form XObject of the page's resources draws (only with <see cref="FormFixtureOptions.WithResourceMarks"/>).</summary>
+    public static readonly PdfRect ResourceXObject = new(330, 100, 380, 150);
+
+    /// <summary>The square an image of the page's resources fills (only with <see cref="FormFixtureOptions.WithResourceMarks"/>).</summary>
+    public static readonly PdfRect ResourceImage = new(20, 100, 70, 150);
+
+    /// <summary>The square the Type3 font of the page's resources draws as its letter A (only with <see cref="FormFixtureOptions.WithResourceMarks"/>).</summary>
+    public static readonly PdfRect ResourceFontGlyph = new(270, 100, 320, 150);
+
+    /// <summary>Width in points of the extra first page (only with <see cref="FormFixtureOptions.WithLeadingPlainPage"/>).</summary>
+    public const int LeadingPageWidthPoints = 300;
+
+    /// <summary>Height in points of the extra first page (only with <see cref="FormFixtureOptions.WithLeadingPlainPage"/>).</summary>
+    public const int LeadingPageHeightPoints = 200;
+
+    /// <summary>The black square on the extra first page, in that page's own coordinates (only with <see cref="FormFixtureOptions.WithLeadingPlainPage"/>).</summary>
+    public static readonly PdfRect LeadingPageMark = new(20, 20, 80, 80);
+
     /// <summary>Builds the PDF described by <paramref name="options"/> (the defaults when it is <see langword="null"/>).</summary>
     /// <returns>The complete PDF file as bytes.</returns>
     public static byte[] Create(FormFixtureOptions? options = null)
@@ -151,8 +201,10 @@ public static class FormFixtureFactory
         string mediaBox = "/MediaBox " + new PdfRect(0, 0, PageWidthPoints, PageHeightPoints).ToPdfArray();
         string cropBox = o.WithCropBox ? " /CropBox " + CropBox.ToPdfArray() : string.Empty;
         string rotate = o.Rotate != 0 ? FormattableString.Invariant($" /Rotate {o.Rotate}") : string.Empty;
-        const string Resources = " /Resources << /Font << /F1 16 0 R >> >>";
-        string pageAttributes = mediaBox + cropBox + rotate + Resources;
+        string fonts = "/F1 16 0 R" + (o.WithResourceMarks ? " /F3 19 0 R" : string.Empty);
+        string xObjects = o.WithResourceMarks ? " /XObject << /X1 17 0 R /Im1 18 0 R >>" : string.Empty;
+        string resources = " /Resources << /Font << " + fonts + " >>" + xObjects + " >>";
+        string pageAttributes = mediaBox + cropBox + rotate + resources;
 
         var annotations = new List<string>();
         if (o.WithFields)
@@ -172,11 +224,21 @@ public static class FormFixtureFactory
             content.Append(FormattableString.Invariant($"BT /F1 36 Tf 0 0 0 rg {PageText.Left} {PageText.Bottom + 10} Td (WWWW) Tj ET\n"));
         }
 
+        if (o.WithResourceMarks)
+        {
+            // The XObject is drawn at its own size, the 2 x 2 image is stretched over its square, and the Type3
+            // glyph is 1000 x 1000 glyph units (one em), so at this font size it fills its square exactly.
+            content.Append(FormattableString.Invariant($"q 1 0 0 1 {ResourceXObject.Left} {ResourceXObject.Bottom} cm /X1 Do Q\n"));
+            content.Append(FormattableString.Invariant($"q {ResourceImage.Width} 0 0 {ResourceImage.Height} {ResourceImage.Left} {ResourceImage.Bottom} cm /Im1 Do Q\n"));
+            content.Append(FormattableString.Invariant($"BT /F3 {ResourceFontGlyph.Height} Tf 0 0 0 rg {ResourceFontGlyph.Left} {ResourceFontGlyph.Bottom} Td (A) Tj ET\n"));
+        }
+
         // Fixed object numbers keep the cross-references readable; objects a variant does not use stay in the
         // file unreferenced, which is valid PDF and invisible to a reader.
-        var objects = new string[17];
+        var objects = new string[23];
         objects[1] = "<< /Type /Catalog /Pages 2 0 R" + (acroForm ? " /AcroForm 3 0 R" : string.Empty) + " >>";
-        objects[2] = "<< /Type /Pages /Kids [4 0 R] /Count 1" + (o.InheritPageAttributes ? " " + pageAttributes : string.Empty) + " >>";
+        string kids = o.WithLeadingPlainPage ? "/Kids [21 0 R 4 0 R] /Count 2" : "/Kids [4 0 R] /Count 1";
+        objects[2] = "<< /Type /Pages " + kids + (o.InheritPageAttributes ? " " + pageAttributes : string.Empty) + " >>";
         objects[3] = "<< /Fields [6 0 R 8 0 R 11 0 R]" + (o.NeedAppearances ? " /NeedAppearances true" : string.Empty)
             + " /DR << /Font << /Helv 16 0 R >> >> /DA (/Helv 0 Tf 0 g) >>";
         objects[4] = "<< /Type /Page /Parent 2 0 R" + (o.InheritPageAttributes ? string.Empty : " " + pageAttributes)
@@ -206,6 +268,23 @@ public static class FormFixtureFactory
         objects[15] = "<< /Type /Annot /Subtype /Square /Rect " + MarkupWithoutAppearance.ToPdfArray()
             + " /F 4 /C [0 0 0] /IC [0 0 0] /BS << /W 2 >> /P 4 0 R >>";
         objects[16] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+
+        // The resources behind WithResourceMarks: a black form XObject, a 2 x 2 black greyscale image (written
+        // in hexadecimal so the file stays ASCII) and a Type3 font whose letter A is a filled em square.
+        objects[17] = BlackBox(ResourceXObject);
+        objects[18] = Stream("/Type /XObject /Subtype /Image /Width 2 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /ASCIIHexDecode", "00000000>");
+        objects[19] = "<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 0 0.001 0 0]"
+            + " /CharProcs << /square 20 0 R >> /Encoding << /Type /Encoding /Differences [65 /square] >>"
+            + " /FirstChar 65 /LastChar 65 /Widths [1000] /Resources << >> >>";
+
+        // d1 declares an uncoloured glyph (it is filled with the text colour) 1000 units wide.
+        objects[20] = Stream(string.Empty, "1000 0 0 0 1000 1000 d1 0 0 1000 1000 re f");
+
+        // The extra first page states every inheritable attribute itself, so nothing on /Pages reaches it.
+        PdfRect leadingBox = new(0, 0, LeadingPageWidthPoints, LeadingPageHeightPoints);
+        objects[21] = "<< /Type /Page /Parent 2 0 R /MediaBox " + leadingBox.ToPdfArray() + " /CropBox " + leadingBox.ToPdfArray()
+            + " /Rotate 0 /Resources << >> /Contents 22 0 R >>";
+        objects[22] = Stream(string.Empty, FormattableString.Invariant($"0 0 0 rg {LeadingPageMark.Left} {LeadingPageMark.Bottom} {LeadingPageMark.Width} {LeadingPageMark.Height} re f"));
 
         return Assemble(objects);
     }

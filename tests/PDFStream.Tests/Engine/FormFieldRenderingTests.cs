@@ -14,8 +14,9 @@ namespace PDFStream.Tests.Engine;
 /// widgets on their own, so these tests render hand-made form PDFs (see <see cref="FormFixtureFactory"/>)
 /// through both of PDFStream's print paths and check the pixels: fields marked for printing are inked,
 /// a field without the Print flag is not, and everything the page drew before (its own content and its
-/// ordinary annotations) is still drawn, at the same size and in the same place. Pages without form fields
-/// must come out exactly as PDFium draws them.
+/// ordinary annotations, and what it draws through resources it inherits from the page tree) is still drawn,
+/// at the same size and in the same place. Pages without form fields must come out exactly as PDFium draws
+/// them, and in a document with several pages each page index keeps drawing its own page.
 /// </summary>
 public sealed class FormFieldRenderingTests
 {
@@ -52,7 +53,7 @@ public sealed class FormFieldRenderingTests
     public static TheoryData<string, RenderPath> LayoutVariants()
     {
         var data = new TheoryData<string, RenderPath>();
-        foreach (string variant in new[] { "content and markup", "inherited page attributes", "crop box", "rotate 90", "everything at once" })
+        foreach (string variant in new[] { "content and markup", "inherited page attributes", "page resources", "inherited resources", "crop box", "rotate 90", "everything at once" })
         {
             data.Add(variant, RenderPath.Bitmap);
             data.Add(variant, RenderPath.DeviceContext);
@@ -65,7 +66,7 @@ public sealed class FormFieldRenderingTests
     public static TheoryData<string, RenderPath> FormLessPages()
     {
         var data = new TheoryData<string, RenderPath>();
-        foreach (string page in new[] { "text page", "page with content and markup annotations" })
+        foreach (string page in new[] { "text page", "page with content and markup annotations", "page inheriting its resources" })
         {
             data.Add(page, RenderPath.Bitmap);
             data.Add(page, RenderPath.DeviceContext);
@@ -156,8 +157,9 @@ public sealed class FormFieldRenderingTests
     /// <summary>
     /// Drawing the fields changes nothing else: the page keeps its size before and after a render, and every
     /// pixel PDFium draws for the page without its fields (page content, ordinary annotations with and without
-    /// a stored appearance) is still dark, in the same place, while the fields add their own ink. Covers
-    /// inherited page attributes, a crop box and a rotated page, where the boxes are easiest to disturb.
+    /// a stored appearance, marks drawn through the page's resources) is still dark, in the same place, while the
+    /// fields add their own ink. Covers inherited page attributes and inherited resources, a crop box and a
+    /// rotated page, where the boxes and the resources are easiest to disturb.
     /// </summary>
     [Theory]
     [MemberData(nameof(LayoutVariants))]
@@ -170,26 +172,16 @@ public sealed class FormFieldRenderingTests
         SizeF before = document.GetPageSizePoints(0);
         using Bitmap ours = Render(document, path);
         SizeF after = document.GetPageSizePoints(0);
-        using Bitmap reference = path == RenderPath.Bitmap
-            ? RawPdfium.RenderBitmap(pdf, ours.Width, ours.Height)
-            : RawPdfium.RenderOnDeviceContext(pdf, ours.Width, ours.Height);
+        using Bitmap reference = Reference(pdf, path, ours.Size);
 
         Assert.Equal(expected, before);
         Assert.Equal(expected, after);
 
-        bool[] ourInk = Pixels.DarkMask(ours);
-        bool[] referenceInk = Pixels.DarkMask(reference);
-        int lost = 0;
-        int gained = 0;
-        for (int i = 0; i < ourInk.Length; i++)
-        {
-            lost += referenceInk[i] && !ourInk[i] ? 1 : 0;
-            gained += ourInk[i] && !referenceInk[i] ? 1 : 0;
-        }
+        (int lost, int gained) = CompareInk(reference, ours);
 
         // Both fields lie inside the crop box, so all of their area must turn up as new ink.
         int fieldArea = (int)((FormFixtureFactory.TextField.Width * FormFixtureFactory.TextField.Height) + (FormFixtureFactory.CheckBox.Width * FormFixtureFactory.CheckBox.Height));
-        _output.WriteLine($"{variant}, {path}: page {ours.Width} x {ours.Height}, reference ink {referenceInk.Count(d => d)}, lost {lost}, gained {gained} (field area {fieldArea})");
+        _output.WriteLine($"{variant}, {path}: page {ours.Width} x {ours.Height}, reference ink {Pixels.CountDark(reference)}, lost {lost}, gained {gained} (field area {fieldArea})");
         Assert.Equal(0, lost);
         Assert.True(gained >= fieldArea * 0.9, $"Expected the fields to add about {fieldArea} dark pixels, found {gained}.");
     }
@@ -199,18 +191,128 @@ public sealed class FormFieldRenderingTests
     [MemberData(nameof(FormLessPages))]
     public void Form_less_page_is_drawn_exactly_as_PDFium_draws_it(string page, RenderPath path)
     {
-        byte[] pdf = page == "text page"
-            ? FixtureFactory.CreatePdf(1)
-            : FormFixtureFactory.Create(new FormFixtureOptions { WithFields = false, WithPageContent = true, WithMarkupAnnotations = true });
+        byte[] pdf = page switch
+        {
+            "text page" => FixtureFactory.CreatePdf(1),
+            "page with content and markup annotations" => FormFixtureFactory.Create(new FormFixtureOptions { WithFields = false, WithPageContent = true, WithMarkupAnnotations = true }),
+            "page inheriting its resources" => FormFixtureFactory.Create(new FormFixtureOptions { WithFields = false, WithPageContent = true, WithResourceMarks = true, InheritPageAttributes = true }),
+            _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Unknown page."),
+        };
 
         using IPdfDocument document = Load(pdf);
         using Bitmap ours = Render(document, path);
-        using Bitmap reference = path == RenderPath.Bitmap
-            ? RawPdfium.RenderBitmap(pdf, ours.Width, ours.Height)
-            : RawPdfium.RenderOnDeviceContext(pdf, ours.Width, ours.Height);
+        using Bitmap reference = Reference(pdf, path, ours.Size);
 
         Assert.True(Pixels.CountDark(reference) > 100, "The reference rendering should hold the page's ink.");
         AssertSamePixels(reference, ours);
+    }
+
+    /// <summary>
+    /// Marks a form page draws through named entries of its /Resources (a form XObject, an image and a glyph of
+    /// a Type3 font) are still drawn next to its fields, whether the page has its own /Resources or inherits
+    /// them from the page tree. Flattening the fields into the page itself gave a page that inherits its
+    /// resources an empty /Resources of its own, which hid the inherited ones: the XObject and the image
+    /// vanished and the glyph fell back to a Helvetica letter, while the print still reported success.
+    /// </summary>
+    [Theory]
+    [InlineData(true, RenderPath.Bitmap)]
+    [InlineData(true, RenderPath.DeviceContext)]
+    [InlineData(false, RenderPath.Bitmap)]
+    [InlineData(false, RenderPath.DeviceContext)]
+    public void Marks_drawn_through_the_page_resources_are_drawn_next_to_the_fields(bool inherited, RenderPath path)
+    {
+        using IPdfDocument document = Load(FormFixtureFactory.Create(new FormFixtureOptions { WithResourceMarks = true, InheritPageAttributes = inherited }));
+        using Bitmap page = Render(document, path);
+
+        AssertAllInked(page, ResourceMarksAndFields(inherited ? "inherited" : "own"));
+    }
+
+    /// <summary>
+    /// In a document whose second page is a form page (inheriting its attributes and resources) and whose first
+    /// page is a plain page of another size, each page index keeps drawing its own page, in any order and again:
+    /// the plain page exactly as PDFium draws it, the form page with its fields and everything else it draws.
+    /// The page count and the page sizes stay those of the PDF, and no index past the last page becomes usable
+    /// once the form page has been drawn.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void Each_page_of_a_document_with_a_form_page_draws_its_own_page(RenderPath path)
+    {
+        byte[] pdf = FormFixtureFactory.Create(new FormFixtureOptions { WithLeadingPlainPage = true, InheritPageAttributes = true, WithPageContent = true, WithResourceMarks = true });
+        SizeF plainSize = RawPdfium.PageSize(pdf, 0);
+        SizeF formSize = RawPdfium.PageSize(pdf, 1);
+        Assert.NotEqual(plainSize, formSize);
+
+        using IPdfDocument document = Load(pdf);
+        Assert.Equal(2, document.PageCount);
+
+        // The form page first, so whatever is done to prepare it is done before the plain page is drawn.
+        using Bitmap form = Render(document, path, pageIndex: 1);
+        using Bitmap plain = Render(document, path, pageIndex: 0);
+        using Bitmap formAgain = Render(document, path, pageIndex: 1);
+        using Bitmap plainReference = Reference(pdf, path, plain.Size, pageIndex: 0);
+        using Bitmap formReference = Reference(pdf, path, form.Size, pageIndex: 1);
+
+        AssertSamePixels(plainReference, plain);
+        AssertInked(plain, FormFixtureFactory.LeadingPageMark.ToInnerPixels(Dpi, FormFixtureFactory.LeadingPageHeightPoints), "the plain page's black square");
+
+        (int lost, int gained) = CompareInk(formReference, form);
+        _output.WriteLine($"Form page, {path}: lost {lost}, gained {gained}");
+        Assert.Equal(0, lost);
+        AssertAllInked(form, ResourceMarksAndFields("inherited"));
+        AssertSamePixels(form, formAgain);
+
+        Assert.Equal(2, document.PageCount);
+        Assert.Equal(plainSize, document.GetPageSizePoints(0));
+        Assert.Equal(formSize, document.GetPageSizePoints(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.GetPageSizePoints(2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => document.RenderToBitmap(2, Dpi, quarterTurns: 0));
+    }
+
+    /// <summary>
+    /// One form document drawn from two threads at the same moment, one thread on each print path, starting
+    /// before its form page has ever been drawn (so both threads race to prepare it): every picture is the one a
+    /// single thread draws, fields and resource marks included.
+    /// </summary>
+    [Fact]
+    public async Task One_form_document_drawn_from_two_threads_at_once_gives_the_same_pictures()
+    {
+        const int Rounds = 5;
+        byte[] pdf = FormFixtureFactory.Create(Variant("inherited resources"));
+
+        // What one thread alone draws, each from a document of its own.
+        using IPdfDocument bitmapDocument = Load(pdf);
+        using IPdfDocument deviceContextDocument = Load(pdf);
+        using Bitmap expectedBitmap = Render(bitmapDocument, RenderPath.Bitmap);
+        using Bitmap expectedDeviceContext = Render(deviceContextDocument, RenderPath.DeviceContext);
+        AssertAllInked(expectedBitmap, ResourceMarksAndFields("inherited"));
+        AssertAllInked(expectedDeviceContext, ResourceMarksAndFields("inherited"));
+
+        using IPdfDocument shared = Load(pdf);
+        using var barrier = new Barrier(2);
+
+        int DrawRepeatedly(RenderPath path, Bitmap expected)
+        {
+            if (!barrier.SignalAndWait(TimeSpan.FromSeconds(30)))
+            {
+                throw new TimeoutException("The other thread never started.");
+            }
+
+            for (int round = 0; round < Rounds; round++)
+            {
+                using Bitmap page = Render(shared, path);
+                AssertSamePixels(expected, page);
+            }
+
+            return Rounds;
+        }
+
+        Task<int> bitmaps = Task.Factory.StartNew(() => DrawRepeatedly(RenderPath.Bitmap, expectedBitmap), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        Task<int> deviceContexts = Task.Factory.StartNew(() => DrawRepeatedly(RenderPath.DeviceContext, expectedDeviceContext), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        int[] results = await Task.WhenAll(bitmaps, deviceContexts).WaitAsync(TimeSpan.FromMinutes(2), TestContext.Current.CancellationToken);
+
+        Assert.Equal([Rounds, Rounds], results);
     }
 
     /// <summary>Rendering the same form page again (as copies do) gives the same picture, fields included.</summary>
@@ -293,7 +395,7 @@ public sealed class FormFieldRenderingTests
     [InlineData("throws", RenderPath.DeviceContext)]
     public void A_page_that_cannot_be_flattened_is_drawn_as_it_is(string failure, RenderPath path)
     {
-        byte[] pdf = FormFixtureFactory.Create(new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true });
+        byte[] pdf = FormFixtureFactory.Create(Variant("inherited resources"));
         var engine = new PdfiumEngine(FailingFlattener(failure));
         Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
 
@@ -305,6 +407,90 @@ public sealed class FormFieldRenderingTests
         {
             AssertInked(ours, FormFixtureFactory.PageMark, "the page's own black square");
             AssertSamePixels(reference, ours);
+        }
+    }
+
+    /// <summary>
+    /// A page that cannot be copied (PDFium reports failure, or the call throws, as a pdfium.dll without the
+    /// function would) is drawn exactly as PDFium draws it without any form handling, and is never flattened:
+    /// the fields stay blank, as before, and nothing else changes.
+    /// </summary>
+    [Theory]
+    [InlineData("reports failure", RenderPath.Bitmap)]
+    [InlineData("reports failure", RenderPath.DeviceContext)]
+    [InlineData("throws", RenderPath.Bitmap)]
+    [InlineData("throws", RenderPath.DeviceContext)]
+    public void A_page_that_cannot_be_copied_is_drawn_as_it_is(string failure, RenderPath path)
+    {
+        byte[] pdf = FormFixtureFactory.Create(Variant("inherited resources"));
+        int flattened = 0;
+        var engine = new PdfiumEngine((_, _) => Interlocked.Increment(ref flattened), FailingCopier(failure));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        using (Bitmap ours = Render(document!, path))
+        using (Bitmap reference = Reference(pdf, path, ours.Size))
+        {
+            AssertInked(ours, FormFixtureFactory.ResourceXObject, "the XObject the page draws through its inherited resources");
+            AssertSamePixels(reference, ours);
+        }
+
+        Assert.Equal(0, flattened);
+    }
+
+    /// <summary>
+    /// A copy that does not come out exactly the size of the page is not used (whatever it printed would land
+    /// in the wrong place): the page itself is drawn as PDFium draws it, and the copy is never flattened.
+    /// </summary>
+    [Theory]
+    [InlineData(RenderPath.Bitmap)]
+    [InlineData(RenderPath.DeviceContext)]
+    public void A_copy_that_is_not_the_size_of_the_page_is_not_used(RenderPath path)
+    {
+        byte[] pdf = FormFixtureFactory.Create(Variant("inherited resources"));
+        int flattened = 0;
+        var engine = new PdfiumEngine(
+            (_, _) => Interlocked.Increment(ref flattened),
+            (document, pageIndex, insertAt) =>
+            {
+                // A real copy, then made 100 points narrower, as a misbehaving copy might be.
+                bool copied = PdfiumNative.FPDF_ImportPagesByIndex(document, document, [pageIndex], 1, insertAt) != 0;
+                IntPtr copy = PdfiumNative.FPDF_LoadPage(document, insertAt);
+                Assert.NotEqual(IntPtr.Zero, copy);
+                PdfiumNative.FPDFPage_SetMediaBox(copy, 0, 0, FormFixtureFactory.PageWidthPoints - 100, FormFixtureFactory.PageHeightPoints);
+                PdfiumNative.FPDF_ClosePage(copy);
+                return copied;
+            });
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+
+        using (document)
+        using (Bitmap ours = Render(document!, path))
+        using (Bitmap reference = Reference(pdf, path, ours.Size))
+        {
+            Assert.Equal(new SizeF(FormFixtureFactory.PageWidthPoints, FormFixtureFactory.PageHeightPoints), document!.GetPageSizePoints(0));
+            AssertSamePixels(reference, ours);
+        }
+
+        Assert.Equal(0, flattened);
+    }
+
+    /// <summary>A print job over a page that cannot be copied still succeeds and prints the page.</summary>
+    [Theory]
+    [InlineData("reports failure")]
+    [InlineData("throws")]
+    public void A_print_job_whose_page_cannot_be_copied_still_prints(string failure)
+    {
+        var engine = new PdfiumEngine(flattenPage: null, FailingCopier(failure));
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(FormFixtureFactory.Create(new FormFixtureOptions { WithPageContent = true }), null, out IPdfDocument? document));
+
+        using (document)
+        using (var controller = new FakePrintController())
+        {
+            PrintResult result = PrintJob.Run(document!, [0], TestPrinters.Settings(), "Form", ScaleMode.FitToPage, CancellationToken.None, controller);
+
+            Assert.True(result.Succeeded, result.Message);
+            Assert.Equal(1, result.PagesPrinted);
+            Assert.True(Pixels.CountDark(controller.Pages[0]) > 100, "Expected the page content on the sheet.");
         }
     }
 
@@ -328,16 +514,22 @@ public sealed class FormFieldRenderingTests
         }
     }
 
-    /// <summary>A page without form fields is never flattened, however often it is drawn.</summary>
+    /// <summary>A page without form fields is never copied or flattened, however often it is drawn.</summary>
     [Fact]
     public void A_page_without_form_fields_is_never_flattened()
     {
         int calls = 0;
-        var engine = new PdfiumEngine((page, usage) =>
-        {
-            Interlocked.Increment(ref calls);
-            return PdfiumNative.FPDFPage_Flatten(page, usage);
-        });
+        var engine = new PdfiumEngine(
+            (page, usage) =>
+            {
+                Interlocked.Increment(ref calls);
+                return PdfiumNative.FPDFPage_Flatten(page, usage);
+            },
+            (document, pageIndex, insertAt) =>
+            {
+                Interlocked.Increment(ref calls);
+                return PdfiumNative.FPDF_ImportPagesByIndex(document, document, [pageIndex], 1, insertAt) != 0;
+            });
         byte[] pdf = FormFixtureFactory.Create(new FormFixtureOptions { WithFields = false, WithPageContent = true, WithMarkupAnnotations = true });
         Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
 
@@ -350,20 +542,34 @@ public sealed class FormFieldRenderingTests
         Assert.Equal(0, calls);
     }
 
-    /// <summary>A form page is flattened once, for printing, however often and by whichever path it is drawn.</summary>
+    /// <summary>
+    /// A form page is copied once, to the end of the document, and the copy flattened once, for printing, however
+    /// often and by whichever path the page is drawn.
+    /// </summary>
     [Fact]
     public void A_form_page_is_flattened_once_for_printing()
     {
         var usages = new List<int>();
-        var engine = new PdfiumEngine((page, usage) =>
-        {
-            lock (usages)
+        var copies = new List<(int PageIndex, int InsertAt)>();
+        var engine = new PdfiumEngine(
+            (page, usage) =>
             {
-                usages.Add(usage);
-            }
+                lock (usages)
+                {
+                    usages.Add(usage);
+                }
 
-            return PdfiumNative.FPDFPage_Flatten(page, usage);
-        });
+                return PdfiumNative.FPDFPage_Flatten(page, usage);
+            },
+            (document, pageIndex, insertAt) =>
+            {
+                lock (copies)
+                {
+                    copies.Add((pageIndex, insertAt));
+                }
+
+                return PdfiumNative.FPDF_ImportPagesByIndex(document, document, [pageIndex], 1, insertAt) != 0;
+            });
         Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(FormFixtureFactory.Create(), null, out IPdfDocument? document));
 
         using (document)
@@ -375,6 +581,7 @@ public sealed class FormFieldRenderingTests
         }
 
         Assert.Equal([PdfiumNative.FlattenForPrint], usages);
+        Assert.Equal([(0, 1)], copies);
     }
 
     /// <summary>A flattener that fails the way <paramref name="failure"/> names, without touching the page.</summary>
@@ -385,14 +592,24 @@ public sealed class FormFieldRenderingTests
         _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Unknown failure."),
     };
 
+    /// <summary>A page copier that fails the way <paramref name="failure"/> names, without copying anything.</summary>
+    private static PageCopier FailingCopier(string failure) => failure switch
+    {
+        "reports failure" => (_, _, _) => false,
+        "throws" => (_, _, _) => throw new EntryPointNotFoundException("Unable to find an entry point named 'FPDF_ImportPagesByIndex' in DLL 'pdfium'."),
+        _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, "Unknown failure."),
+    };
+
     /// <summary>The fixture options behind each named layout variant.</summary>
     private static FormFixtureOptions Variant(string name) => name switch
     {
         "content and markup" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true },
         "inherited page attributes" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, InheritPageAttributes = true },
+        "page resources" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithResourceMarks = true },
+        "inherited resources" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithResourceMarks = true, InheritPageAttributes = true },
         "crop box" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithCropBox = true },
         "rotate 90" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, Rotate = 90 },
-        "everything at once" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, InheritPageAttributes = true, WithCropBox = true, Rotate = 90 },
+        "everything at once" => new FormFixtureOptions { WithPageContent = true, WithMarkupAnnotations = true, WithResourceMarks = true, InheritPageAttributes = true, WithCropBox = true, Rotate = 90 },
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown variant."),
     };
 
@@ -404,24 +621,24 @@ public sealed class FormFieldRenderingTests
     }
 
     /// <summary>
-    /// Renders page 1 at <see cref="Dpi"/> through the chosen path: as a bitmap, or onto the device context
-    /// of a white bitmap of the page's size (24 bits per pixel, see <see cref="PdfiumEngineTests"/>).
+    /// Renders a page (page 1 by default) at <see cref="Dpi"/> through the chosen path: as a bitmap, or onto the
+    /// device context of a white bitmap of the page's size (24 bits per pixel, see <see cref="PdfiumEngineTests"/>).
     /// </summary>
-    private static Bitmap Render(IPdfDocument document, RenderPath path)
+    private static Bitmap Render(IPdfDocument document, RenderPath path, int pageIndex = 0)
     {
         if (path == RenderPath.Bitmap)
         {
-            return document.RenderToBitmap(0, Dpi, quarterTurns: 0);
+            return document.RenderToBitmap(pageIndex, Dpi, quarterTurns: 0);
         }
 
-        SizeF size = document.GetPageSizePoints(0);
+        SizeF size = document.GetPageSizePoints(pageIndex);
         var target = new Bitmap((int)Math.Round(size.Width), (int)Math.Round(size.Height), PixelFormat.Format24bppRgb);
         using Graphics graphics = Graphics.FromImage(target);
         graphics.Clear(Color.White);
         IntPtr hdc = graphics.GetHdc();
         try
         {
-            document.RenderToDeviceContext(0, hdc, new Rectangle(0, 0, target.Width, target.Height), forPrinting: true, quarterTurns: 0);
+            document.RenderToDeviceContext(pageIndex, hdc, new Rectangle(0, 0, target.Width, target.Height), forPrinting: true, quarterTurns: 0);
         }
         finally
         {
@@ -431,10 +648,70 @@ public sealed class FormFieldRenderingTests
         return target;
     }
 
-    /// <summary>Fails unless (nearly) the whole inner area of <paramref name="field"/> is dark.</summary>
-    private void AssertInked(Bitmap page, PdfRect field, string what)
+    /// <summary>The reference picture of a page: plain PDFium on the same path, at the same pixel size.</summary>
+    private static Bitmap Reference(byte[] pdf, RenderPath path, Size size, int pageIndex = 0) => path == RenderPath.Bitmap
+        ? RawPdfium.RenderBitmap(pdf, size.Width, size.Height, pageIndex)
+        : RawPdfium.RenderOnDeviceContext(pdf, size.Width, size.Height, pageIndex);
+
+    /// <summary>
+    /// Compares the ink of two pictures of the same size pixel by pixel: how many pixels dark in
+    /// <paramref name="reference"/> are not dark in <paramref name="ours"/> (lost), and the other way round (gained).
+    /// </summary>
+    private static (int Lost, int Gained) CompareInk(Bitmap reference, Bitmap ours)
     {
-        Rectangle area = field.ToInnerPixels(Dpi);
+        Assert.Equal(reference.Size, ours.Size);
+        bool[] ourInk = Pixels.DarkMask(ours);
+        bool[] referenceInk = Pixels.DarkMask(reference);
+        int lost = 0;
+        int gained = 0;
+        for (int i = 0; i < ourInk.Length; i++)
+        {
+            lost += referenceInk[i] && !ourInk[i] ? 1 : 0;
+            gained += ourInk[i] && !referenceInk[i] ? 1 : 0;
+        }
+
+        return (lost, gained);
+    }
+
+    /// <summary>The three resource marks and the two printable fields of an unrotated, uncropped fixture page.</summary>
+    /// <param name="resources">How the page gets its resources ("own" or "inherited"), for the failure messages.</param>
+    private static (PdfRect Area, string What)[] ResourceMarksAndFields(string resources) =>
+    [
+        (FormFixtureFactory.ResourceXObject, $"the form XObject drawn through the page's {resources} resources"),
+        (FormFixtureFactory.ResourceImage, $"the image drawn through the page's {resources} resources"),
+        (FormFixtureFactory.ResourceFontGlyph, $"the Type3 glyph drawn through the page's {resources} resources"),
+        (FormFixtureFactory.TextField, "the filled text field"),
+        (FormFixtureFactory.CheckBox, "the ticked checkbox"),
+    ];
+
+    /// <summary>
+    /// Fails unless (nearly) the whole inner area of every rectangle is dark; the failure lists every rectangle
+    /// that is not, so one run shows everything that is missing.
+    /// </summary>
+    private void AssertAllInked(Bitmap page, (PdfRect Area, string What)[] marks)
+    {
+        var missing = new List<string>();
+        foreach ((PdfRect area, string what) in marks)
+        {
+            Rectangle inner = area.ToInnerPixels(Dpi);
+            int dark = Pixels.CountDarkIn(page, inner);
+            int total = inner.Width * inner.Height;
+            _output.WriteLine($"Dark pixels in {what}: {dark} of {total}");
+            if (dark < total * FullyInked)
+            {
+                missing.Add($"{what}: only {dark} of its {total} pixels are dark");
+            }
+        }
+
+        Assert.True(missing.Count == 0, "Expected these to be drawn: " + string.Join("; ", missing) + ".");
+    }
+
+    /// <summary>Fails unless (nearly) the whole inner area of <paramref name="field"/> is dark.</summary>
+    private void AssertInked(Bitmap page, PdfRect field, string what) => AssertInked(page, field.ToInnerPixels(Dpi), what);
+
+    /// <summary>Fails unless (nearly) the whole of <paramref name="area"/>, in pixels, is dark.</summary>
+    private void AssertInked(Bitmap page, Rectangle area, string what)
+    {
         int dark = Pixels.CountDarkIn(page, area);
         int total = area.Width * area.Height;
         _output.WriteLine($"Dark pixels in {what}: {dark} of {total}");

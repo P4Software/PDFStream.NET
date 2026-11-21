@@ -6,7 +6,7 @@ using Xunit;
 namespace PDFStream.Tests.Fixtures;
 
 /// <summary>
-/// Renders page 1 of a PDF straight through PDFium's own drawing calls, with exactly the flags PDFStream
+/// Renders a page of a PDF straight through PDFium's own drawing calls, with exactly the flags PDFStream
 /// prints with and nothing else: no form handling, no flattening, no layout. It is the reference the
 /// engine's output is compared with, so a test can show what PDFStream adds (form fields) and prove that it
 /// changes nothing else.
@@ -16,15 +16,15 @@ internal static class RawPdfium
     /// <summary>The flags PDFStream renders with: annotations, for printing.</summary>
     private const int PrintFlags = PdfiumNative.RenderAnnotations | PdfiumNative.RenderForPrinting;
 
-    /// <summary>The size of page 1 in points, as displayed, from a fresh, untouched copy of the PDF.</summary>
-    public static SizeF PageSize(byte[] pdf) => WithFirstPage(pdf, (document, _) =>
+    /// <summary>The size of a page (page 1 by default) in points, as displayed, from a fresh, untouched copy of the PDF.</summary>
+    public static SizeF PageSize(byte[] pdf, int pageIndex = 0) => WithPage(pdf, pageIndex, (document, _) =>
     {
-        Assert.NotEqual(0, PdfiumNative.FPDF_GetPageSizeByIndexF(document, 0, out PdfiumNative.FsSizeF size));
+        Assert.NotEqual(0, PdfiumNative.FPDF_GetPageSizeByIndexF(document, pageIndex, out PdfiumNative.FsSizeF size));
         return new SizeF(size.Width, size.Height);
     });
 
-    /// <summary>Renders page 1 into a white 32-bit bitmap of the given pixel size with FPDF_RenderPageBitmap.</summary>
-    public static Bitmap RenderBitmap(byte[] pdf, int width, int height) => WithFirstPage(pdf, (_, page) =>
+    /// <summary>Renders a page (page 1 by default) into a white 32-bit bitmap of the given pixel size with FPDF_RenderPageBitmap.</summary>
+    public static Bitmap RenderBitmap(byte[] pdf, int width, int height, int pageIndex = 0) => WithPage(pdf, pageIndex, (_, page) =>
     {
         var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
         BitmapData pixels = bitmap.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
@@ -51,10 +51,10 @@ internal static class RawPdfium
     });
 
     /// <summary>
-    /// Renders page 1 onto the device context of a white 24-bit bitmap of the given pixel size with
-    /// FPDF_RenderPage, the call PDFStream uses on a printer.
+    /// Renders a page (page 1 by default) onto the device context of a white 24-bit bitmap of the given pixel
+    /// size with FPDF_RenderPage, the call PDFStream uses on a printer.
     /// </summary>
-    public static Bitmap RenderOnDeviceContext(byte[] pdf, int width, int height) => WithFirstPage(pdf, (_, page) =>
+    public static Bitmap RenderOnDeviceContext(byte[] pdf, int width, int height, int pageIndex = 0) => WithPage(pdf, pageIndex, (_, page) =>
     {
         // 24 bits per pixel: GDI leaves the alpha byte of 32-bit pixels at zero (see PdfiumEngineTests).
         var target = new Bitmap(width, height, PixelFormat.Format24bppRgb);
@@ -74,10 +74,11 @@ internal static class RawPdfium
     });
 
     /// <summary>
-    /// Opens a private copy of the PDF, loads page 1 and runs <paramref name="use"/> with the document and
-    /// page pointers, all under the process-wide PDFium lock, then closes everything again.
+    /// Opens a private copy of the PDF, loads the page at <paramref name="pageIndex"/> and runs
+    /// <paramref name="use"/> with the document and page pointers, all under the process-wide PDFium lock, then
+    /// closes everything again.
     /// </summary>
-    private static T WithFirstPage<T>(byte[] pdf, Func<IntPtr, IntPtr, T> use)
+    private static T WithPage<T>(byte[] pdf, int pageIndex, Func<IntPtr, IntPtr, T> use)
     {
         lock (PdfiumLibrary.Sync)
         {
@@ -85,7 +86,7 @@ internal static class RawPdfium
             using PdfiumDocumentHandle handle = PdfiumDocumentHandle.Open(pdf, null, out int error)
                 ?? throw new InvalidOperationException($"PDFium could not open the reference copy (error {error}).");
             IntPtr document = handle.DangerousGetHandle();
-            IntPtr page = PdfiumNative.FPDF_LoadPage(document, 0);
+            IntPtr page = PdfiumNative.FPDF_LoadPage(document, pageIndex);
             Assert.NotEqual(IntPtr.Zero, page);
             try
             {
