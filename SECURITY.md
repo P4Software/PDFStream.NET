@@ -28,8 +28,10 @@ advisory unless you prefer not to be named.
 | Older releases | No: update to the latest release |
 | Builds from source | No: use the latest release, or the latest commit on `main` |
 
-Version 1.0.0-rc.1 is the first release of PDFStream.NET (the package `PDFStream.NET`). It has not been published on
-NuGet yet; until it is, fixes land on `main` only.
+Version 1.0.0-rc.1, the first release of PDFStream.NET (the package `PDFStream.NET`), was published on
+[nuget.org](https://www.nuget.org/packages/PDFStream.NET) on 2026-11-21. Version 1.0.0-rc.2 is the version with the
+new package page; its library code is the same as 1.0.0-rc.1. Security fixes are released as new versions on
+nuget.org, so update to the latest 1.0.0-rc.x (and later the stable 1.0.0) to receive them.
 
 ## PDFium, the PDF engine
 

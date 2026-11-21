@@ -77,9 +77,20 @@ dotnet publish samples/PDFStream.NET.TestPrint/PDFStream.NET.TestPrint.csproj --
 ```
 
 The package is named `PDFStream.NET`, so `dotnet pack` writes `artifacts/package/PDFStream.NET.<version>.nupkg`
-(`PDFStream.NET.1.0.0-rc.1.nupkg` for the first release). The version is set in one place, `VersionPrefix` and
-`VersionSuffix` in `Directory.Build.props`, and the package check in `.github/workflows/ci.yml` expects the same
-version: change both together when a new version is released.
+(`PDFStream.NET.1.0.0-rc.2.nupkg` for the current version). The version is set in one place, `VersionPrefix` and
+`VersionSuffix` in `Directory.Build.props`, and the package check, `.github/scripts/check-package.ps1`, expects the
+same version: change both together when a new version is released. Run the check locally after a pack:
+
+```text
+pwsh -File .github/scripts/check-package.ps1 -PackageFolder artifacts/package
+```
+
+The package page on nuget.org is `src/PDFStream.NET/README.nuget.md`, packed as `README.md`; the repository's own
+`README.md` is the GitHub page and is not packed. Write the package readme for nuget.org: no HTML, only absolute
+`https` links, and images only from hosts nuget.org allows (for example `img.shields.io`). Its
+`dotnet add package PDFStream.NET --version <version>` line must name the version being released; the package check
+fails otherwise. The package icon, `src/PDFStream.NET/icon.png`, is drawn by `tools/make-icon.ps1`
+(`pwsh -File tools/make-icon.ps1`): change the script and run it again rather than editing the picture.
 The assembly inside it is `PDFStream.NET.dll` and the namespace is `PDFStream.NET`.
 
 The package does not contain `pdfium.dll` itself: it depends on the `bblanchon.PDFium.Win32` package, whose
@@ -90,7 +101,7 @@ with `<PackageReference Include="PDFStream.NET" Version="<version>" />`, add
 folder (so an older copy of the package in your cache cannot stand in for the new one), build and publish it
 with `-r win-x64`, `-r win-x86`, `-r win-arm64` and with no runtime identifier, for `net8.0-windows` and
 `net10.0-windows`, and check that the `pdfium.dll` next to the exe is the one for that architecture. CI checks
-the package's own contents (licence, notices, readme, metadata, the PDFium dependency) on every run.
+the package's own contents (licence, notices, package readme, icon, metadata, the PDFium dependency) on every run.
 
 The publish command makes one exe that includes .NET and `pdfium.dll`, so it runs by double-click on a
 machine without .NET.

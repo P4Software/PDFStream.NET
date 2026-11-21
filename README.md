@@ -5,7 +5,7 @@
 **Free, open-source PDF printing for .NET.**
 Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licence keys, no watermarks.
 
-![Status: 1.0.0-rc.1 release candidate](https://img.shields.io/badge/status-1.0.0--rc.1%20release%20candidate-yellow)
+[![NuGet](https://img.shields.io/nuget/vpre/PDFStream.NET?label=NuGet)](https://www.nuget.org/packages/PDFStream.NET)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4)
 ![.NET 8 and 10](https://img.shields.io/badge/.NET-8%20%7C%2010-512BD4)
 ![Licence: MIT](https://img.shields.io/badge/licence-MIT-brightgreen)
@@ -14,12 +14,14 @@ Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licen
 
 ---
 
-> **Status: version 1.0.0-rc.1, the first release (a release candidate).** The library is complete and its automated tests pass, including
-> real prints to *Microsoft Print to PDF* in 64-bit and 32-bit processes. The manual release checklist
-> (physical printers, a Windows service, a scheduled task, Arm64 hardware) is **not complete yet**, and the
-> package (`PDFStream.NET`) is **not on NuGet yet**. The stable 1.0.0 follows once the remaining checklist rows
-> (Arm64, a scheduled task, IIS, other physical and duplex printers) are verified. PDF to image conversion is
-> planned after 1.0.
+> **Status: a release candidate, on NuGet as a prerelease.** Version 1.0.0-rc.1, the first release, was
+> published on [nuget.org](https://www.nuget.org/packages/PDFStream.NET) on 2026-11-21; 1.0.0-rc.2 is the version
+> with the new package page (icon, package readme, description, tags), with no library code change. The library is
+> complete and its automated tests pass, including real prints to *Microsoft Print to PDF* in 64-bit and 32-bit
+> processes. The manual release checklist (physical printers, a Windows service, a scheduled task, Arm64
+> hardware) is **not complete yet**. The stable 1.0.0 follows once the remaining checklist rows (Arm64, a
+> scheduled task, IIS, other physical and duplex printers) are verified. PDF to image conversion is planned after
+> 1.0.
 > See [what has been verified](#what-has-been-verified).
 
 ## Why PDFStream.NET?
@@ -49,22 +51,21 @@ own warehouse software, and we are sharing it so nobody else has to pay for it.
 
 ## Install
 
-PDFStream.NET is not published on NuGet yet. Version 1.0.0-rc.1 is the first release and a prerelease, so once it
-is published a plain `dotnet add package PDFStream.NET` finds nothing until the stable 1.0.0 exists. Add the
-prerelease explicitly:
+PDFStream.NET is on [nuget.org](https://www.nuget.org/packages/PDFStream.NET) as a prerelease: 1.0.0-rc.1 was
+published on 2026-11-21, and 1.0.0-rc.2 is the version with the new package page. Until the stable 1.0.0 exists, a
+plain `dotnet add package PDFStream.NET` finds no stable version, so add the prerelease explicitly:
 
 ```text
 dotnet add package PDFStream.NET --prerelease
 ```
 
-or name the version: `dotnet add package PDFStream.NET --version 1.0.0-rc.1`. On nuget.org the package page lists
-prereleases only when "Include prerelease" is ticked.
+or name the version: `dotnet add package PDFStream.NET --version 1.0.0-rc.2`. In the Visual Studio package manager,
+tick "Include prerelease" to see it.
 
 The package, the assembly and the namespace are all called `PDFStream.NET`: in your code you write
 `using PDFStream.NET;`.
 
-Until then, build the package from this repository (see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.NET/blob/main/CONTRIBUTING.md)) and add the
-folder it lands in as a package source.
+To build the package yourself from this repository, see [CONTRIBUTING.md](https://github.com/P4Software/PDFStream.NET/blob/main/CONTRIBUTING.md).
 
 Requirements:
 
@@ -162,10 +163,16 @@ On one Windows 11 x64 machine:
   2026-11-21: the package was packed as `PDFStream.NET.1.0.0-rc.1.nupkg` and used from a separate win-x64 app on
   `net10.0-windows` with `using PDFStream.NET;`, which printed a PDF to *Microsoft Print to PDF*, and the right
   `pdfium.dll` landed next to the exe.
+- Version 1.0.0-rc.2 (the package page; the library code is unchanged), on 2026-11-21, in a 64-bit process only:
+  the full test suite passed on both frameworks (452 on `net8.0-windows`, 477 on `net10.0-windows`, none
+  skipped); `PDFStream.NET.1.0.0-rc.2.nupkg` passed the package check with the icon and the package readme
+  inside; and a separate win-x64 app on `net10.0-windows` restored it into an empty package cache and printed a
+  one-page PDF to *Microsoft Print to PDF* with `OutputFile` (status Ok, one page in the output file).
 
 Not verified yet (they are on the [release checklist](https://github.com/P4Software/PDFStream.NET/blob/main/docs/release-checklist.md)): running on an Arm64
 PC, physical printers (duplex, network printers), and printing from a Windows service, a scheduled task
-or IIS.
+or IIS. One real print through an installed print service on one PC has been reported as working; that is a
+single report, so the checklist row for Windows services stays open.
 
 ## Roadmap
 
@@ -175,8 +182,9 @@ or IIS.
 | 2 | Silent printing of a PDF to a chosen printer | Done |
 | 3 | Print options (ranges, copies, duplex, colour, scaling, paper source, print to file) | Done |
 | 4 | Password-protected PDFs and clear error messages | Done |
-| 5 | Manual release checklist, then the first NuGet release (1.0.0-rc.1) and the stable 1.0.0 | In progress |
-| 6 | PDF to image conversion (PNG, JPG, TIFF), planned after 1.0 | Planned |
+| 5 | First NuGet release (1.0.0-rc.1, published 2026-11-21) | Done |
+| 6 | A proper package page (1.0.0-rc.2), the manual release checklist, then the stable 1.0.0 | In progress |
+| 7 | PDF to image conversion (PNG, JPG, TIFF), planned after 1.0 | Planned |
 
 ## Get involved
 

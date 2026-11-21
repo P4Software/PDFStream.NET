@@ -6,6 +6,15 @@ and (for a failure) opened an issue. Never change a result to Pass from memory.
 
 How to read the result column: **Pass**, **Fail** (write what happened), **Not run**.
 
+## Releases so far
+
+| Version | On nuget.org | Manual checks (section 2) at the time |
+| --- | --- | --- |
+| 1.0.0-rc.1 | Published on 2026-11-21, as a prerelease | All rows Not run |
+| 1.0.0-rc.2 | The package page release (icon, package readme, description, tags, release notes); the library code is the same as 1.0.0-rc.1. Write the date here once it is published. | All rows Not run |
+
+The stable 1.0.0 is released only after the open rows in section 2 have been run and recorded.
+
 ## 1. Automated checks (run by the test suite)
 
 The real-print acceptance tests print through *Microsoft Print to PDF* into a temporary file, re-open the
@@ -58,6 +67,10 @@ Print a multi-page PDF with the sample or your own program built for each archit
 | Run from a Windows service under a normal service account (not LocalSystem, not an administrator), printing to a printer that account can use | | | Not run | |
 | Run from a Task Scheduler task ("Run whether user is logged on or not") | | | Not run | |
 | Run from an IIS application pool: an ASP.NET Core app printing to a printer visible to the app pool identity | | | Not run | |
+
+Reported, not signed off: on 2026-11-21, one real print through an installed print service on one PC was
+reported as working. The Windows service row above stays Not run until someone records the machine, the
+service account, the printer, the date and the result in it.
 
 ### 2.3 Printers and paper
 
