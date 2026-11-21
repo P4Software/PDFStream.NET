@@ -21,10 +21,10 @@ Print to PDF has no paper, no tray, no duplex unit and no queue that can go offl
 
 | Check | Machine | Date | Result | Initials |
 | --- | --- | --- | --- | --- |
-| Real-print tests, x64 host, net10.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8) with `--filter-trait "Category=RealPrinter" --framework net10.0-windows`, including the vector-path and form-field checks, and in the full net10.0-windows suite (389 of 389) | |
-| Real-print tests, x86 (32-bit) host, net10.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8), including the vector-path and form-field checks, in the full suite with `--arch x86 --framework net10.0-windows` (389 of 389) | |
-| Real-print tests, x64 host, net8.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8) with `--filter-trait "Category=RealPrinter" --framework net8.0-windows`, and in the full net8.0-windows suite (364 of 364) | |
-| Real-print tests, x86 (32-bit) host, net8.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8), in the full suite with `--arch x86 --framework net8.0-windows` (364 of 364) | |
+| Real-print tests, x64 host, net10.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8) with `--filter-trait "Category=RealPrinter" --framework net10.0-windows`, including the vector-path and form-field checks, and in the full net10.0-windows suite (415 of 415) | |
+| Real-print tests, x86 (32-bit) host, net10.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8), including the vector-path and form-field checks, in the full suite with `--arch x86 --framework net10.0-windows` (415 of 415) on a re-run; the first run that day failed one test (`Copies_two_produces_doubled_pages`: Print to PDF had not finished writing the file after 30 seconds) | |
+| Real-print tests, x64 host, net8.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8) with `--filter-trait "Category=RealPrinter" --framework net8.0-windows`, and in the full net8.0-windows suite (390 of 390) | |
+| Real-print tests, x86 (32-bit) host, net8.0-windows | Windows 11 x64 developer workstation | 2026-11-21 | Pass (8 of 8), in the full suite with `--arch x86 --framework net8.0-windows` (390 of 390) | |
 
 What the automated tests cover: three pages in, three pages out and none blank; five pages of mixed sizes and
 orientations; a page range; two software copies (Print to PDF reports a maximum of 1 copy); a password-protected
