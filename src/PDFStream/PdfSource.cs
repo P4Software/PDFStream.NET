@@ -6,7 +6,10 @@ namespace PDFStream;
 /// Turns the three ways a caller can hand over a PDF (a file path, a stream or a byte array)
 /// into an open <see cref="IPdfDocument"/>, and every way that can go wrong into a
 /// <see cref="PrintStatus"/>. Nothing in here throws for bad input: the public print methods
-/// promise a result with a message instead of an exception.
+/// promise a result with a message instead of an exception. The one thing that does come out as an
+/// exception is a failure of the engine itself (for example pdfium.dll missing for this processor):
+/// it is not about the caller's file, and the facade turns it into an unknown-error result that
+/// carries the exception's message, which the person fixing the installation needs to see.
 /// </summary>
 internal static class PdfSource
 {
@@ -122,16 +125,12 @@ internal static class PdfSource
                     return PrintStatus.InvalidPdf;
             }
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
-        {
-            // An engine failure that is not about the file, for example pdfium.dll missing for
-            // this processor. The caller gets a status, never an exception.
-            return PrintStatus.UnknownError;
-        }
         finally
         {
             // Anything opened but not handed to the caller (zero pages, or an exception after
-            // the open) is released here so native memory is never leaked.
+            // the open) is released here so native memory is never leaked. An engine failure is
+            // deliberately not caught here: the facade reports it with the exception's message,
+            // which a bare status could not carry.
             opened?.Dispose();
         }
     }

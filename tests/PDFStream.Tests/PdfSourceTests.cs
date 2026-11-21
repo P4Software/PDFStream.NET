@@ -319,17 +319,19 @@ public sealed class PdfSourceTests : IDisposable
     }
 
     /// <summary>
-    /// An unexpected engine failure, such as a missing pdfium.dll, becomes UnknownError instead
-    /// of escaping to the caller.
+    /// An unexpected engine failure, such as a missing pdfium.dll, is not about the caller's file, so it
+    /// is not turned into a status here: it reaches the facade with its message, which turns it into
+    /// UnknownError (see PdfPrinterTests). No document is handed out.
     /// </summary>
     [Fact]
-    public void Engine_exception_is_UnknownError()
+    public void Engine_exception_reaches_the_caller_with_its_message()
     {
         var fake = new FakeEngine(new DllNotFoundException("pdfium.dll"));
+        IPdfDocument? doc = null;
 
-        PrintStatus status = PdfSource.Load(fake, new byte[] { 1 }, null, out IPdfDocument? doc);
+        var thrown = Assert.Throws<DllNotFoundException>(() => PdfSource.Load(fake, new byte[] { 1 }, null, out doc));
 
-        Assert.Equal(PrintStatus.UnknownError, status);
+        Assert.Equal("pdfium.dll", thrown.Message);
         Assert.Null(doc);
     }
 

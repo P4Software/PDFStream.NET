@@ -1,10 +1,26 @@
 using System.Drawing.Printing;
+using Xunit;
 
 namespace PDFStream.Tests.Printing;
 
 /// <summary>Printer settings for tests that must not touch any real printer.</summary>
 internal static class TestPrinters
 {
+    /// <summary>The installed printer the tests that need real printer settings use. It is never printed to.</summary>
+    public const string MicrosoftPrintToPdf = "Microsoft Print to PDF";
+
+    /// <summary>
+    /// Skips the calling test, with the reason shown in the test output, when "Microsoft Print to PDF"
+    /// is not installed. The facade validates the printer against the real print system before it runs
+    /// the job, so a test that reaches the job needs one real printer name (the job itself is faked).
+    /// </summary>
+    public static void RequireMicrosoftPrintToPdf()
+    {
+        bool installed = PDFStream.Printing.SystemPrinterCatalog.Instance.GetInstalledPrinterNames()
+            .Contains(MicrosoftPrintToPdf, StringComparer.OrdinalIgnoreCase);
+        Assert.SkipUnless(installed, $"The '{MicrosoftPrintToPdf}' printer is not installed on this machine, so a print call cannot get as far as its job.");
+    }
+
     /// <summary>
     /// Settings for a printer that is not installed, usable with <see cref="FakePrintController"/>.
     /// </summary>

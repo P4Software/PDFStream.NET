@@ -14,6 +14,21 @@ internal static class PrinterLocator
     private const int MaxCopies = short.MaxValue;
 
     /// <summary>
+    /// Checks the options that need no printer to be judged: a printer name, a copy count Windows can
+    /// store, and enum values that are defined. The public print method calls it before it opens the
+    /// PDF, so a wrong option is reported without any file or printer work.
+    /// </summary>
+    /// <param name="options">The caller's print options; <see langword="null"/> is not usable.</param>
+    /// <returns><see langword="true"/> when the options can be used.</returns>
+    internal static bool AreOptionsUsable(PrintOptions? options) =>
+        options is not null
+        && !string.IsNullOrWhiteSpace(options.PrinterName)
+        && options.Copies >= 1
+        && options.Copies <= MaxCopies
+        && Enum.IsDefined(options.Duplex)
+        && Enum.IsDefined(options.Scale);
+
+    /// <summary>
     /// Prepares the settings for one print job on the real installed printers.
     /// </summary>
     /// <param name="options">The caller's print options.</param>
@@ -64,7 +79,7 @@ internal static class PrinterLocator
 
         // Check the options before touching the print system: bad input should fail the same way
         // on a machine with no printers at all.
-        if (options is null || string.IsNullOrWhiteSpace(options.PrinterName) || options.Copies < 1 || options.Copies > MaxCopies)
+        if (!AreOptionsUsable(options))
         {
             message = Messages.InvalidOptions();
             return PrintStatus.InvalidOptions;

@@ -37,7 +37,7 @@ public sealed class PrintResult
 
     /// <summary>Creates the result of a job that did not (fully) print.</summary>
     /// <param name="status">The reason. It must not be <see cref="PrintStatus.Ok"/>.</param>
-    /// <param name="message">A more specific message than the standard one for the status, or <see langword="null"/> for the standard one.</param>
+    /// <param name="message">A more specific message than the standard one for the status. <see langword="null"/>, empty or blank means the standard one: a blank line is never shown to the user.</param>
     /// <param name="pagesPrinted">The exact pages sent when a cancellation ended the job normally; 0 (the default) after a failure, because an unfinished job is withdrawn.</param>
     internal static PrintResult Failure(PrintStatus status, string? message = null, int pagesPrinted = 0)
     {
@@ -48,6 +48,6 @@ public sealed class PrintResult
             throw new ArgumentException("A failure result cannot have the Ok status.", nameof(status));
         }
 
-        return new PrintResult(status, message ?? Messages.For(status), pagesPrinted);
+        return new PrintResult(status, string.IsNullOrWhiteSpace(message) ? Messages.For(status) : message, pagesPrinted);
     }
 }

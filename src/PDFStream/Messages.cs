@@ -54,7 +54,7 @@ internal static class Messages
 
     /// <summary>The printer cannot be opened or rejects the settings.</summary>
     internal static string PrinterUnavailable() =>
-        "The printer could not be opened, or it does not accept the requested settings. Check that the printer is switched on and connected, then try again or choose different print settings.";
+        "The printer could not be opened, or it does not accept the requested settings. Check that the printer is switched on and connected and that the Windows Print Spooler service is running, then try again or choose different print settings.";
 
     /// <summary>The page range text is malformed.</summary>
     internal static string InvalidPageRange() =>
@@ -134,13 +134,14 @@ internal static class Messages
         $"{UnknownError()} Details: {details}";
 
     /// <summary>
-    /// A page could not be drawn by either print path, so the job was stopped. The job is withdrawn
-    /// from the print queue rather than finished, so no half-drawn sheet comes out.
+    /// A page could not be drawn by either print path, so the job was stopped. The job is aborted
+    /// rather than finished, so no half-drawn sheet should come out; the text says "may have been
+    /// withdrawn" because the print system, not this library, removes an aborted job from the queue.
     /// </summary>
     /// <param name="pageNumber">The page that failed, counted from 1.</param>
     /// <param name="details">The technical reason, usually the engine's exception message.</param>
     internal static string PageFailed(int pageNumber, string details) =>
-        $"Page {pageNumber} of the PDF could not be drawn, so printing was stopped and the unfinished job was withdrawn from the print queue. The page may be damaged: open the PDF in a PDF viewer to check it, then print the document again. Details: {details}";
+        $"Page {pageNumber} of the PDF could not be drawn, so printing was stopped and the unfinished job may have been withdrawn from the print queue. Check the print queue for a job left over from this document and delete it, then open the PDF in a PDF viewer to check that the page is not damaged and print the document again. Details: {details}";
 
     /// <summary>
     /// The printer refused the page as drawing commands and the page is too large to send as a
@@ -148,5 +149,5 @@ internal static class Messages
     /// </summary>
     /// <param name="pageNumber">The page that failed, counted from 1.</param>
     internal static string PageTooLarge(int pageNumber) =>
-        $"Page {pageNumber} could not be printed: the printer did not accept it as drawing commands, and the page is too large to send as a picture with the memory available. Printing was stopped and the unfinished job was withdrawn from the print queue. Print the document with the page fitted to the paper or with a lower print quality, then try again.";
+        $"Page {pageNumber} could not be printed: the printer did not accept it as drawing commands, and the page is too large to send as a picture with the memory available. Printing was stopped and the unfinished job may have been withdrawn from the print queue, so check the print queue for a job left over from this document and delete it. Choose a smaller paper size, or split the document into smaller parts, then try again.";
 }

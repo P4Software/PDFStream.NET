@@ -103,6 +103,60 @@ public sealed class PrintResultTests
         Assert.Equal(string.Empty, options.PrinterName);
     }
 
+    /// <summary>
+    /// A custom message that is empty or only spaces would show the user a blank line, so the standard
+    /// message for the status is used instead; a real custom message is kept.
+    /// </summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\t\r\n")]
+    public void Blank_custom_message_falls_back_to_the_standard_message(string blank)
+    {
+        PrintResult result = PrintResult.Failure(PrintStatus.PrinterNotFound, blank);
+
+        Assert.Equal(Messages.For(PrintStatus.PrinterNotFound), result.Message);
+    }
+
+    /// <summary>
+    /// The generic "printer unavailable" text is what a stopped Print Spooler produces when the printer
+    /// list itself cannot be read, so it must point at the spooler.
+    /// </summary>
+    [Fact]
+    public void PrinterUnavailable_message_hints_at_the_Print_Spooler()
+    {
+        Assert.Contains("Print Spooler", Messages.PrinterUnavailable());
+    }
+
+    /// <summary>
+    /// Under the default fit-to-page, "fit the page to the paper" is advice the caller already follows,
+    /// so the too-large advice must name something else: a smaller paper size or splitting the document.
+    /// </summary>
+    [Fact]
+    public void PageTooLarge_advice_is_not_circular_and_does_not_promise_a_withdrawn_job()
+    {
+        string message = Messages.PageTooLarge(3);
+
+        Assert.DoesNotContain("fitted to the paper", message);
+        Assert.Contains("smaller paper size", message);
+        Assert.Contains("split", message);
+        Assert.DoesNotContain("job was withdrawn", message);
+        Assert.Contains("may have been withdrawn", message);
+        Assert.Contains("print queue", message);
+    }
+
+    /// <summary>The page-failure text says the job may have been withdrawn and tells the user to check the queue.</summary>
+    [Fact]
+    public void PageFailed_message_does_not_promise_a_withdrawn_job()
+    {
+        string message = Messages.PageFailed(2, "boom");
+
+        Assert.DoesNotContain("job was withdrawn", message);
+        Assert.Contains("may have been withdrawn", message);
+        Assert.Contains("check the print queue", message, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("Details: boom", message);
+    }
+
     // The text after the last ". " (or the whole message if it is a single sentence).
     private static string LastSentence(string message)
     {

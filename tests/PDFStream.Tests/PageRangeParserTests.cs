@@ -126,6 +126,38 @@ public sealed class PageRangeParserTests
     }
 
     /// <summary>
+    /// A reversed range is a typo even when a bound is too large for an int: "99999999999-2" runs from
+    /// high to low, so it is InvalidPageRange and not PageNotFound. When both bounds overflow the
+    /// digits are compared as numbers.
+    /// </summary>
+    [Theory]
+    [InlineData("99999999999-2")]
+    [InlineData("99999999999-88888888888")]
+    [InlineData("3, 99999999999-2")]
+    public void Reversed_range_with_an_overflowing_number_is_InvalidPageRange(string spec)
+    {
+        bool ok = PageRangeParser.TryParse(spec, 10, out IReadOnlyList<int> pages, out PrintStatus error);
+
+        Assert.False(ok);
+        Assert.Equal(PrintStatus.InvalidPageRange, error);
+        Assert.Empty(pages);
+    }
+
+    /// <summary>An overflowing bound in the right order is a page the document does not have.</summary>
+    [Theory]
+    [InlineData("2-99999999999")]
+    [InlineData("88888888888-99999999999")]
+    [InlineData("99999999999-99999999999")]
+    public void Ascending_range_with_an_overflowing_number_is_PageNotFound(string spec)
+    {
+        bool ok = PageRangeParser.TryParse(spec, 10, out IReadOnlyList<int> pages, out PrintStatus error);
+
+        Assert.False(ok);
+        Assert.Equal(PrintStatus.PageNotFound, error);
+        Assert.Empty(pages);
+    }
+
+    /// <summary>
     /// When the text is both malformed and mentions a missing page, the malformed text is reported:
     /// the caller has to fix the text before the page numbers mean anything.
     /// </summary>

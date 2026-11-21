@@ -74,7 +74,8 @@ internal static class PageRangeParser
     /// <param name="range">The first and last page, 1-based, equal for a single page.</param>
     /// <param name="overflow">
     /// <see langword="true"/> when a number is made of digits but is too large for an int. Such a
-    /// page certainly does not exist, so the caller reports it as a missing page, not as a typo.
+    /// page certainly does not exist, so the caller reports it as a missing page, not as a typo (a
+    /// reversed range is still a typo, whatever the size of the numbers).
     /// </param>
     private static bool TryParsePart(string part, out (int First, int Last) range, out bool overflow)
     {
@@ -87,20 +88,25 @@ internal static class PageRangeParser
             return false;
         }
 
-        if (!TryParsePage(numbers[0], out int first, out bool firstOverflow))
+        if (!TryParsePage(numbers[0], out int first, out bool firstOverflow, out string firstDigits))
         {
             return false;
         }
 
         int last = first;
-        bool lastOverflow = false;
-        if (numbers.Length == 2 && !TryParsePage(numbers[1], out last, out lastOverflow))
+        bool lastOverflow = firstOverflow;
+        string lastDigits = firstDigits;
+        if (numbers.Length == 2 && !TryParsePage(numbers[1], out last, out lastOverflow, out lastDigits))
         {
             return false;
         }
 
         overflow = firstOverflow || lastOverflow;
-        if (!overflow && last < first)
+
+        // A reversed range is a typo whatever the size of the numbers, so the check runs when a bound
+        // overflows too; only then the digits are compared, because an int cannot hold the value.
+        bool reversed = overflow ? CompareDigits(firstDigits, lastDigits) > 0 : last < first;
+        if (reversed)
         {
             return false;
         }
@@ -117,26 +123,42 @@ internal static class PageRangeParser
     /// <param name="text">The text of the number.</param>
     /// <param name="page">The page number, 1 or more.</param>
     /// <param name="overflow">Whether the digits were valid but too large for an int.</param>
-    private static bool TryParsePage(string text, out int page, out bool overflow)
+    /// <param name="digits">The digits without spaces and leading zeros, kept so two numbers too large for an int can still be compared.</param>
+    private static bool TryParsePage(string text, out int page, out bool overflow, out string digits)
     {
         page = 0;
         overflow = false;
 
-        string digits = text.Trim();
-        if (digits.Length == 0 || !digits.All(char.IsAsciiDigit))
+        string trimmed = text.Trim();
+        digits = trimmed;
+        if (trimmed.Length == 0 || !trimmed.All(char.IsAsciiDigit))
         {
+            return false;
+        }
+
+        // "0007" is page 7; stripping the zeros also makes the length a valid measure of size.
+        digits = trimmed.TrimStart('0');
+        if (digits.Length == 0)
+        {
+            // Only zeros: page 0, which does not exist.
             return false;
         }
 
         if (!int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out page))
         {
             overflow = true;
-            return true;
         }
 
-        // Pages are numbered from 1.
-        return page >= 1;
+        return true;
     }
+
+    /// <summary>
+    /// Compares two numbers written as digits without leading zeros, with no limit on their size:
+    /// the longer one is larger, and equal lengths compare digit by digit.
+    /// </summary>
+    /// <returns>A positive number when <paramref name="a"/> is larger, negative when smaller, 0 when equal.</returns>
+    private static int CompareDigits(string a, string b) =>
+        a.Length != b.Length ? a.Length.CompareTo(b.Length) : string.CompareOrdinal(a, b);
 
     private static bool Fail(PrintStatus status, out IReadOnlyList<int> zeroBasedPages, out PrintStatus error)
     {
