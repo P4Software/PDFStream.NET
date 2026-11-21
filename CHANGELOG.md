@@ -6,7 +6,11 @@ All notable changes to PDFStream.net are recorded here. The format follows
 
 ## [Unreleased]
 
-Version 1.0 release candidate. Not published on NuGet yet; the manual release checklist is not complete.
+## 1.0.0-rc.1 - 2026-11-21
+
+The first release of PDFStream.net, a release candidate (a prerelease on NuGet). The stable 1.0.0 follows once the
+remaining manual release checklist rows are verified (Arm64, a scheduled task, IIS, other physical and duplex
+printers); see "Verified" below for what was run and what was not.
 
 ### Added
 
@@ -93,10 +97,10 @@ Version 1.0 release candidate. Not published on NuGet yet; the manual release ch
 ### Verified
 
 Test hosts actually run for this change (one Windows 11 x64 machine, .NET SDK 11.0.100; the test counts are
-from the last run, on 2026-11-21, Release build, on the code with the form-printing changes of that day):
+from the last run, on 2026-11-21, Release build, on the code of this release):
 
-- win-x64: `net8.0-windows` (450 tests) and `net10.0-windows` (475 tests), all passed, none skipped.
-- win-x86: `net8.0-windows` (450 tests) and `net10.0-windows` (475 tests)
+- win-x64: `net8.0-windows` (452 tests) and `net10.0-windows` (477 tests), all passed, none skipped.
+- win-x86: `net8.0-windows` (452 tests) and `net10.0-windows` (477 tests)
   (`dotnet test --project tests/PDFStream.net.Tests/PDFStream.net.Tests.csproj --arch x86`), all passed, none
   skipped; the form, engine, real-print and memory tests logged `Process architecture: X86`. On an earlier
   32-bit `net10.0-windows` run that day, one real-print test timed out after 30 seconds waiting for
@@ -126,3 +130,9 @@ from the last run, on 2026-11-21, Release build, on the code with the form-print
   *Microsoft Print to PDF* (status Ok, one page, output file written; its content was not inspected).
 - On 2026-11-20: the self-contained single-file test-print sample (win-x64) printed a two-page PDF to
   *Microsoft Print to PDF*.
+- On 2026-11-21, with the version set to 1.0.0-rc.1: `dotnet pack -c Release` into a folder outside the repository
+  gave `PDFStream.net.1.0.0-rc.1.nupkg` (nuspec version `1.0.0-rc.1`; `AssemblyVersion` and `FileVersion` 1.0.0.0; the
+  informational version is `1.0.0-rc.1` plus the commit hash), and the package check from `ci.yml` passed against it.
+  A separate win-x64 app on `net10.0-windows` restored it (`<PackageReference Include="PDFStream.net" Version="1.0.0-rc.1" />`)
+  from that folder into an empty package cache and printed a two-page PDF to *Microsoft Print to PDF* (status Ok,
+  two pages, output file written with two pages).

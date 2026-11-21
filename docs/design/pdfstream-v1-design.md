@@ -1,6 +1,7 @@
 # PDFStream.net v1: design
 
-Date: 2026-11-20. Status: the design version 1.0 is built to. Owner: P4 Software.
+Date: 2026-11-20. Status: the design the first release (the release candidate 1.0.0-rc.1, then the stable 1.0.0) is
+built to; "v1" in this document and in its file name means that first release. Owner: P4 Software.
 
 ## Intent and why
 
@@ -127,9 +128,10 @@ mapping is a table lookup.
 
 ## v1 scope and release order
 
-- **1.0**: everything in Goals above, the test-print sample, docs, CI, first NuGet release.
-- **1.1**: PDF to image (PNG, JPG, multi-page TIFF) reusing the same engine. Kept out of 1.0 so the
-  first release is small and proven on printers; the public README already says "after version 1".
+- **1.0**: everything in Goals above, the test-print sample, docs, CI. The first NuGet release is the release
+  candidate 1.0.0-rc.1; the stable 1.0.0 follows once the remaining manual release checklist rows are verified.
+- **After 1.0**: PDF to image (PNG, JPG, multi-page TIFF) reusing the same engine. Kept out of 1.0 so the
+  first release is small and proven on printers; the public README says it is planned after 1.0.
 
 No compatibility layer for other PDF libraries' APIs in v1: the first user has a single print call,
 which is simpler to change directly.

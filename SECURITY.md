@@ -24,11 +24,12 @@ advisory unless you prefer not to be named.
 
 | Version | Security fixes |
 | --- | --- |
-| Latest release on NuGet | Yes |
+| 1.0.0-rc.x and later releases (the latest release on NuGet) | Yes |
 | Older releases | No: update to the latest release |
-| Previews and builds from source | No: use the latest release, or the latest commit on `main` |
+| Builds from source | No: use the latest release, or the latest commit on `main` |
 
-PDFStream.net has not had its first release on NuGet (as the package `PDFStream.net`) yet. Until it has, fixes land on `main` only.
+Version 1.0.0-rc.1 is the first release of PDFStream.net (the package `PDFStream.net`). It has not been published on
+NuGet yet; until it is, fixes land on `main` only.
 
 ## PDFium, the PDF engine
 

@@ -5,7 +5,7 @@
 **Free, open-source PDF printing for .NET.**
 Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licence keys, no watermarks.
 
-![Status: 1.0 release candidate](https://img.shields.io/badge/status-1.0%20release%20candidate-yellow)
+![Status: 1.0.0-rc.1 release candidate](https://img.shields.io/badge/status-1.0.0--rc.1%20release%20candidate-yellow)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4)
 ![.NET 8 and 10](https://img.shields.io/badge/.NET-8%20%7C%2010-512BD4)
 ![Licence: MIT](https://img.shields.io/badge/licence-MIT-brightgreen)
@@ -14,10 +14,12 @@ Send a PDF to any Windows printer in one line of code. No Adobe Reader, no licen
 
 ---
 
-> **Status: version 1.0 release candidate.** The library is complete and its automated tests pass, including
+> **Status: version 1.0.0-rc.1, the first release (a release candidate).** The library is complete and its automated tests pass, including
 > real prints to *Microsoft Print to PDF* in 64-bit and 32-bit processes. The manual release checklist
 > (physical printers, a Windows service, a scheduled task, Arm64 hardware) is **not complete yet**, and the
-> package (`PDFStream.net`) is **not on NuGet yet**. PDF to image conversion is planned for version 1.1.
+> package (`PDFStream.net`) is **not on NuGet yet**. The stable 1.0.0 follows once the remaining checklist rows
+> (Arm64, a scheduled task, IIS, other physical and duplex printers) are verified. PDF to image conversion is
+> planned after 1.0.
 > See [what has been verified](#what-has-been-verified).
 
 ## Why PDFStream.net?
@@ -47,11 +49,16 @@ own warehouse software, and we are sharing it so nobody else has to pay for it.
 
 ## Install
 
-PDFStream.net is not published on NuGet yet. Once it is:
+PDFStream.net is not published on NuGet yet. Version 1.0.0-rc.1 is the first release and a prerelease, so once it
+is published a plain `dotnet add package PDFStream.net` finds nothing until the stable 1.0.0 exists. Add the
+prerelease explicitly:
 
 ```text
-dotnet add package PDFStream.net
+dotnet add package PDFStream.net --prerelease
 ```
+
+or name the version: `dotnet add package PDFStream.net --version 1.0.0-rc.1`. On nuget.org the package page lists
+prereleases only when "Include prerelease" is ticked.
 
 The package, the assembly and the namespace are all called `PDFStream.net`: in your code you write
 `using PDFStream.net;`.
@@ -171,8 +178,8 @@ or IIS.
 | 2 | Silent printing of a PDF to a chosen printer | Done |
 | 3 | Print options (ranges, copies, duplex, colour, scaling, paper source, print to file) | Done |
 | 4 | Password-protected PDFs and clear error messages | Done |
-| 5 | Manual release checklist, then the first NuGet release | In progress |
-| 6 | PDF to image conversion (PNG, JPG, TIFF), version 1.1 | Planned |
+| 5 | Manual release checklist, then the first NuGet release (1.0.0-rc.1) and the stable 1.0.0 | In progress |
+| 6 | PDF to image conversion (PNG, JPG, TIFF), planned after 1.0 | Planned |
 
 ## Get involved
 

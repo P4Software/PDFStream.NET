@@ -76,7 +76,10 @@ dotnet pack src/PDFStream.net/PDFStream.net.csproj --configuration Release --out
 dotnet publish samples/PDFStream.net.TestPrint/PDFStream.net.TestPrint.csproj --framework net10.0-windows --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -p:PublishDocumentationFiles=false --output artifacts/testprint
 ```
 
-The package is named `PDFStream.net`, so `dotnet pack` writes `artifacts/package/PDFStream.net.<version>.nupkg`.
+The package is named `PDFStream.net`, so `dotnet pack` writes `artifacts/package/PDFStream.net.<version>.nupkg`
+(`PDFStream.net.1.0.0-rc.1.nupkg` for the first release). The version is set in one place, `VersionPrefix` and
+`VersionSuffix` in `Directory.Build.props`, and the package check in `.github/workflows/ci.yml` expects the same
+version: change both together when a new version is released.
 The assembly inside it is `PDFStream.net.dll` and the namespace is `PDFStream.net`.
 
 The package does not contain `pdfium.dll` itself: it depends on the `bblanchon.PDFium.Win32` package, whose
