@@ -124,9 +124,11 @@ public sealed class FormMemoryTests
         PrintResult result;
         int sheets;
         long printed;
+        var prepared = new List<(int Page, PagePreparation How, CopyRejection Why)>();
         var stopwatch = Stopwatch.StartNew();
         using (document)
         {
+            ((PdfiumDocument)document!).PagePrepared = (page, how, why) => prepared.Add((page, how, why));
             // Small sheets at a low resolution: what is measured is the preparation of the pages, not the sheets.
             using var controller = new FakePrintController(sheetWidth: 100, sheetHeight: 100, dpi: 10);
             result = PrintJob.Run(document!, Enumerable.Range(0, Pages).ToArray(), TestPrinters.Settings(), "Shared resources", ScaleMode.FitToPage, CancellationToken.None, controller);
@@ -139,6 +141,10 @@ public sealed class FormMemoryTests
         Assert.True(result.Succeeded, result.Message);
         Assert.Equal(Pages, result.PagesPrinted);
         Assert.Equal(Pages, sheets);
+
+        // Ok alone would also be the result of flattening every page into itself, which loses the inherited images:
+        // every page must have printed from its copy.
+        Assert.Equal(Enumerable.Range(0, Pages).Select(page => (page, PagePreparation.Copy, CopyRejection.None)), prepared);
     }
 
     /// <summary>Whether (nearly) the whole inner area of a rectangle of a fixture page is dark.</summary>

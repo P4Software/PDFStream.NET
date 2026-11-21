@@ -45,6 +45,43 @@ internal enum PagePreparation
 }
 
 /// <summary>
+/// Why a page with form fields was not printed from its copy (<see cref="PagePreparation.InPlace"/> or
+/// <see cref="PagePreparation.DrawnAsItIs"/>); <see cref="None"/> when it was, or when it has no fields.
+/// </summary>
+internal enum CopyRejection
+{
+    /// <summary>Nothing was rejected: the copy was used, or the page has no form fields.</summary>
+    None,
+
+    /// <summary>No copy was made: the PDF is larger than the copy budget.</summary>
+    OverBudget,
+
+    /// <summary>No copy of this page was made: it was not among the pages planned when the one copy was made.</summary>
+    NotPlanned,
+
+    /// <summary>No copy was made: the copy function failed or threw (for example, missing from pdfium.dll).</summary>
+    CopyFailed,
+
+    /// <summary>The copy is not exactly the size of the page.</summary>
+    SizeDiffers,
+
+    /// <summary>The copy could not be loaded.</summary>
+    CopyNotLoaded,
+
+    /// <summary>The copy carries fewer or more annotations than the page (a damaged reference drops them all).</summary>
+    AnnotationsLost,
+
+    /// <summary>The copy and the page draw differently (layers are the known cause), or they could not be compared.</summary>
+    LooksDifferent,
+
+    /// <summary>Flattening the copy failed or changed its size.</summary>
+    FlattenFailed,
+
+    /// <summary>Form handling itself failed before any copy was looked at (no form-fill environment, or an error).</summary>
+    FormHandlingFailed,
+}
+
+/// <summary>
 /// A PDF opened by PDFium. Every native call is made while holding
 /// <see cref="PdfiumLibrary.Sync"/>, so the document can be used from several threads.
 /// </summary>
@@ -181,6 +218,10 @@ internal sealed class PdfiumDocument : IPdfDocument
     private int[]? _plannedPages;
     private bool _copyAttempted;
 
+    // What became of the one copy, for the reason a page without a copy reports. Read and written only while
+    // holding PdfiumLibrary.Sync.
+    private CopyOutcome _copyOutcome = CopyOutcome.NotAttempted;
+
     /// <summary>
     /// Wraps an open handle. The caller must hold <see cref="PdfiumLibrary.Sync"/>, because the page
     /// count is read from PDFium here, once, instead of on every access.
@@ -223,6 +264,13 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// see what happens to a PDF over the budget. Set it before the first page is drawn.
     /// </summary>
     internal long CopyBudgetBytes { get; set; } = DefaultCopyBudgetBytes;
+
+    /// <summary>
+    /// Test hook: called once for every page, the first time it is drawn, with how it was prepared and, for a page
+    /// with form fields that was not printed from its copy, why. Called while the PDFium lock is held, so it must
+    /// not call back into the document. <see langword="null"/> (the default) in production.
+    /// </summary>
+    internal Action<int, PagePreparation, CopyRejection>? PagePrepared { get; set; }
 
     /// <inheritdoc/>
     /// <remarks>
@@ -434,7 +482,8 @@ internal sealed class PdfiumDocument : IPdfDocument
 
                     // The page loaded above serves the form-field check, so a page without fields is loaded
                     // and parsed only once, as before form fields were handled.
-                    (int drawFrom, _) = TryPrepareForPrinting(document, pageIndex, page);
+                    (int drawFrom, PagePreparation how, CopyRejection why) = TryPrepareForPrinting(document, pageIndex, page);
+                    PagePrepared?.Invoke(pageIndex, how, why);
                     IntPtr prepared = drawFrom == DrawAsItIs ? IntPtr.Zero : PdfiumNative.FPDF_LoadPage(document, drawFrom);
                     if (prepared != IntPtr.Zero)
                     {
@@ -480,13 +529,13 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// <param name="pageIndex">The page to prepare.</param>
     /// <param name="page">The page, loaded. It is not closed here, and is drawn as it is when this fails.</param>
     /// <returns>
-    /// How the page was prepared, and the page of PDFium's document to draw for it from now on: the printable
-    /// copy, or the page itself when its fields were flattened into it (load it again: the loaded page still
-    /// holds the old content). For <see cref="PagePreparation.NoFormFields"/> and
-    /// <see cref="PagePreparation.DrawnAsItIs"/> the index is <see cref="DrawAsItIs"/>: the loaded page is drawn
-    /// as it is.
+    /// How the page was prepared, why it was not printed from its copy (if it was not), and the page of PDFium's
+    /// document to draw for it from now on: the printable copy, or the page itself when its fields were flattened
+    /// into it (load it again: the loaded page still holds the old content). For
+    /// <see cref="PagePreparation.NoFormFields"/> and <see cref="PagePreparation.DrawnAsItIs"/> the index is
+    /// <see cref="DrawAsItIs"/>: the loaded page is drawn as it is.
     /// </returns>
-    private (int DrawFrom, PagePreparation How) TryPrepareForPrinting(IntPtr document, int pageIndex, IntPtr page)
+    private (int DrawFrom, PagePreparation How, CopyRejection Why) TryPrepareForPrinting(IntPtr document, int pageIndex, IntPtr page)
     {
         try
         {
@@ -495,7 +544,7 @@ internal sealed class PdfiumDocument : IPdfDocument
             // a form by another tool often keep their fields but lose /AcroForm.
             if (!HasFormFields(page))
             {
-                return (DrawAsItIs, PagePreparation.NoFormFields);
+                return (DrawAsItIs, PagePreparation.NoFormFields, CopyRejection.None);
             }
 
             IntPtr environment = _handle.GetOrCreateFormFillEnvironment();
@@ -503,7 +552,7 @@ internal sealed class PdfiumDocument : IPdfDocument
             {
                 // Without the form-fill module, annotations whose appearance PDFium builds only while drawing
                 // would be dropped by flattening. Drawing the page as it is loses only the fields.
-                return (DrawAsItIs, PagePreparation.DrawnAsItIs);
+                return (DrawAsItIs, PagePreparation.DrawnAsItIs, CopyRejection.FormHandlingFailed);
             }
 
             // The first page with fields makes the one copy of all the planned pages with fields, building their
@@ -516,13 +565,23 @@ internal sealed class PdfiumDocument : IPdfDocument
         {
             // Preparing a page is an improvement, never a requirement: if even the check for fields fails (for
             // example a pdfium.dll without one of these functions), the page is drawn as it is.
-            return (DrawAsItIs, PagePreparation.DrawnAsItIs);
+            return (DrawAsItIs, PagePreparation.DrawnAsItIs, CopyRejection.FormHandlingFailed);
         }
 
         int copyIndex = _copyOf[pageIndex];
-        if (copyIndex != NoCopy && TryFlattenCopy(document, pageIndex, page, copyIndex))
+        CopyRejection why = copyIndex == NoCopy
+            ? _copyOutcome switch
+            {
+                CopyOutcome.OverBudget => CopyRejection.OverBudget,
+                CopyOutcome.Failed => CopyRejection.CopyFailed,
+
+                // The one copy was made (or found no pages with fields to copy) without this page.
+                _ => CopyRejection.NotPlanned,
+            }
+            : TryFlattenCopy(document, pageIndex, page, copyIndex);
+        if (why == CopyRejection.None)
         {
-            return (copyIndex, PagePreparation.Copy);
+            return (copyIndex, PagePreparation.Copy, CopyRejection.None);
         }
 
         // There is no copy (over the budget, a page that was not planned, a copy that failed or a pdfium.dll
@@ -532,7 +591,7 @@ internal sealed class PdfiumDocument : IPdfDocument
         // the layers stay right, and only a page that also inherits its /Resources loses what it draws through
         // them. Drawing the page as it is, with its fields blank, is left for a page whose fields cannot be
         // flattened at all.
-        return TryFlattenInPlace(page) ? (pageIndex, PagePreparation.InPlace) : (DrawAsItIs, PagePreparation.DrawnAsItIs);
+        return TryFlattenInPlace(page) ? (pageIndex, PagePreparation.InPlace, why) : (DrawAsItIs, PagePreparation.DrawnAsItIs, why);
     }
 
     /// <summary>
@@ -552,11 +611,13 @@ internal sealed class PdfiumDocument : IPdfDocument
         }
 
         _copyAttempted = true;
+        _copyOutcome = CopyOutcome.Failed;
         try
         {
             // Checked before anything is read: over the budget, no page is copied, and nothing needs finding.
             if (_sourceLength > CopyBudgetBytes)
             {
+                _copyOutcome = CopyOutcome.OverBudget;
                 return;
             }
 
@@ -586,6 +647,7 @@ internal sealed class PdfiumDocument : IPdfDocument
 
             if (formPages.Count == 0)
             {
+                _copyOutcome = CopyOutcome.NoPagesWithFields;
                 return;
             }
 
@@ -604,6 +666,8 @@ internal sealed class PdfiumDocument : IPdfDocument
             {
                 _copyOf[pages[k]] = firstCopy + k;
             }
+
+            _copyOutcome = CopyOutcome.Made;
         }
         catch (Exception)
         {
@@ -641,20 +705,21 @@ internal sealed class PdfiumDocument : IPdfDocument
     /// <param name="pageIndex">The page.</param>
     /// <param name="page">The page, loaded (it serves the comparison and the annotation count).</param>
     /// <param name="copyIndex">Where the page's unflattened copy is.</param>
-    /// <returns><see langword="true"/> when the copy was flattened and can be drawn in place of the page.</returns>
-    private bool TryFlattenCopy(IntPtr document, int pageIndex, IntPtr page, int copyIndex)
+    /// <returns><see cref="CopyRejection.None"/> when the copy was flattened and can be drawn in place of the page;
+    /// otherwise why it cannot.</returns>
+    private CopyRejection TryFlattenCopy(IntPtr document, int pageIndex, IntPtr page, int copyIndex)
     {
         try
         {
             if (!HaveSameSize(document, pageIndex, copyIndex))
             {
-                return false;
+                return CopyRejection.SizeDiffers;
             }
 
             IntPtr copy = PdfiumNative.FPDF_LoadPage(document, copyIndex);
             if (copy == IntPtr.Zero)
             {
-                return false;
+                return CopyRejection.CopyNotLoaded;
             }
 
             int flattened;
@@ -664,10 +729,14 @@ internal sealed class PdfiumDocument : IPdfDocument
                 // damaged reference), leaving a copy without any fields. The pixel comparison below cannot see
                 // that, because it draws without the fields, so the annotations are counted first: a copy that
                 // does not carry every annotation of the page is not used.
-                if (PdfiumNative.FPDFPage_GetAnnotCount(copy) != PdfiumNative.FPDFPage_GetAnnotCount(page)
-                    || !CopyDrawsLikeThePage(document, page, pageIndex, copy))
+                if (PdfiumNative.FPDFPage_GetAnnotCount(copy) != PdfiumNative.FPDFPage_GetAnnotCount(page))
                 {
-                    return false;
+                    return CopyRejection.AnnotationsLost;
+                }
+
+                if (!CopyDrawsLikeThePage(document, page, pageIndex, copy))
+                {
+                    return CopyRejection.LooksDifferent;
                 }
 
                 flattened = PinVisibleBoxAndFlatten(copy);
@@ -681,12 +750,15 @@ internal sealed class PdfiumDocument : IPdfDocument
 
             // The copy replaces the page only if it is still exactly the page's size: whatever is printed must
             // land where the page would have.
-            return flattened == PdfiumNative.FlattenSuccess && HaveSameSize(document, pageIndex, copyIndex);
+            return flattened == PdfiumNative.FlattenSuccess && HaveSameSize(document, pageIndex, copyIndex)
+                ? CopyRejection.None
+                : CopyRejection.FlattenFailed;
         }
         catch (Exception)
         {
-            // Any failure on the copy path only means the copy is not used.
-            return false;
+            // Any failure on the copy path only means the copy is not used. It most likely came from flattening
+            // (the comparison catches its own failures), so it is reported as such.
+            return CopyRejection.FlattenFailed;
         }
     }
 
@@ -949,6 +1021,25 @@ internal sealed class PdfiumDocument : IPdfDocument
         {
             throw new ArgumentOutOfRangeException(nameof(quarterTurns), quarterTurns, "Quarter turns must be 0, 1, 2 or 3.");
         }
+    }
+
+    /// <summary>What became of the one copy of a document's pages with form fields.</summary>
+    private enum CopyOutcome
+    {
+        /// <summary>No page with fields has been drawn yet.</summary>
+        NotAttempted,
+
+        /// <summary>The copies were made.</summary>
+        Made,
+
+        /// <summary>None of the planned pages has form fields, so nothing was copied.</summary>
+        NoPagesWithFields,
+
+        /// <summary>The PDF is larger than the copy budget, so nothing was copied.</summary>
+        OverBudget,
+
+        /// <summary>Copying failed (or threw), so nothing usable was copied.</summary>
+        Failed,
     }
 
     private void ValidatePageIndex(int pageIndex)

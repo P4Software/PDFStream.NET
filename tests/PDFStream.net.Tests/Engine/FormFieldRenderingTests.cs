@@ -1004,6 +1004,160 @@ public sealed class FormFieldRenderingTests
         Assert.Equal(PdfiumDocument.DefaultCopyBudgetBytes, ((PdfiumDocument)document).CopyBudgetBytes);
     }
 
+    /// <summary>The key cases of form-page preparation, each with how its page must be prepared and why.</summary>
+    public static TheoryData<string, RenderPath> PreparationCases()
+    {
+        var data = new TheoryData<string, RenderPath>();
+        foreach (string name in new[]
+        {
+            "plain form page", "inherited resources", "page without fields", "damaged annotation reference", "hidden layer",
+            "copy function missing", "copy refused", "copy of another size", "copy cannot be flattened",
+            "nothing can be flattened", "over the copy budget",
+        })
+        {
+            data.Add(name, RenderPath.Bitmap);
+            data.Add(name, RenderPath.DeviceContext);
+        }
+
+        return data;
+    }
+
+    /// <summary>
+    /// Every key case reports, through the document's preparation hook, which branch its page took and why: the
+    /// copy for an ordinary form page and for one that inherits its resources; the page itself (in place) when the
+    /// copy is missing, refused, lost annotations, draws differently, has another size or cannot be flattened, or
+    /// when the PDF is over the copy budget; drawn as it is only when nothing can be flattened. A PDFium update
+    /// that made every copy fail would show here directly, not only as a loss of ink on some pages.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(PreparationCases))]
+    public void Each_key_case_reports_how_its_page_was_prepared(string name, RenderPath path)
+    {
+        (byte[] pdf, PdfiumEngine engine, PagePreparation expectedHow, CopyRejection expectedWhy, long? budget) = name switch
+        {
+            "plain form page" => (FormFixtureFactory.Create(), new PdfiumEngine(), PagePreparation.Copy, CopyRejection.None, (long?)null),
+            "inherited resources" => (FormFixtureFactory.Create(Variant("inherited resources")), new PdfiumEngine(), PagePreparation.Copy, CopyRejection.None, null),
+            "page without fields" => (FormFixtureFactory.Create(new FormFixtureOptions { WithFields = false, WithPageContent = true }), new PdfiumEngine(), PagePreparation.NoFormFields, CopyRejection.None, null),
+            "damaged annotation reference" => (FormFixtureFactory.Create(new FormFixtureOptions { WithPageContent = true, WithDanglingAnnotationReference = true }), new PdfiumEngine(), PagePreparation.InPlace, CopyRejection.AnnotationsLost, null),
+            "hidden layer" => (FormFixtureFactory.Create(Variant("hidden layer")), new PdfiumEngine(), PagePreparation.InPlace, CopyRejection.LooksDifferent, null),
+            "copy function missing" => (FormFixtureFactory.Create(Variant("page resources")), new PdfiumEngine(flattenPage: null, FailingCopier("throws")), PagePreparation.InPlace, CopyRejection.CopyFailed, null),
+            "copy refused" => (FormFixtureFactory.Create(Variant("page resources")), new PdfiumEngine(flattenPage: null, FailingCopier("reports failure")), PagePreparation.InPlace, CopyRejection.CopyFailed, null),
+            "copy of another size" => (FormFixtureFactory.Create(Variant("page resources")), new PdfiumEngine(flattenPage: null, NarrowingCopier()), PagePreparation.InPlace, CopyRejection.SizeDiffers, null),
+            "copy cannot be flattened" => (FormFixtureFactory.Create(Variant("page resources")), new PdfiumEngine(FailingFirstFlattener()), PagePreparation.InPlace, CopyRejection.FlattenFailed, null),
+            "nothing can be flattened" => (FormFixtureFactory.Create(Variant("page resources")), new PdfiumEngine(FailingFlattener("reports failure")), PagePreparation.DrawnAsItIs, CopyRejection.FlattenFailed, null),
+            "over the copy budget" => (FormFixtureFactory.Create(Variant("inherited resources")), new PdfiumEngine(), PagePreparation.InPlace, CopyRejection.OverBudget, 1L),
+            _ => throw new ArgumentOutOfRangeException(nameof(name), name, "Unknown case."),
+        };
+
+        Assert.Equal(PdfLoadStatus.Ok, engine.TryLoad(pdf, null, out IPdfDocument? document));
+        var prepared = new List<(int Page, PagePreparation How, CopyRejection Why)>();
+        using (document)
+        {
+            var pdfium = (PdfiumDocument)document!;
+            if (budget is long bytes)
+            {
+                pdfium.CopyBudgetBytes = bytes;
+            }
+
+            pdfium.PagePrepared = (page, how, why) => prepared.Add((page, how, why));
+            Render(document!, path).Dispose();
+            Render(document!, path).Dispose();
+        }
+
+        _output.WriteLine($"{name}, {path}: {string.Join(", ", prepared)}");
+        Assert.Equal([(0, expectedHow, expectedWhy)], prepared);
+    }
+
+    /// <summary>
+    /// Many pages sharing one resource dictionary: under the copy budget every page prints from its copy; over
+    /// it, every page has its fields flattened into itself and says that the budget was the reason.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Every_page_of_a_document_reports_the_copy_budget_decision(bool overBudget)
+    {
+        const int Pages = 6;
+        byte[] pdf = SharedResourceFixtureFactory.Create(Pages, images: 1, withFields: true, SharedResources.Inherited);
+        var prepared = new List<(int Page, PagePreparation How, CopyRejection Why)>();
+        using (IPdfDocument document = Load(pdf))
+        {
+            var pdfium = (PdfiumDocument)document;
+            pdfium.CopyBudgetBytes = overBudget ? pdf.Length - 1 : pdf.Length;
+            pdfium.PagePrepared = (page, how, why) => prepared.Add((page, how, why));
+            for (int page = 0; page < Pages; page++)
+            {
+                using Bitmap picture = Render(document, RenderPath.Bitmap, page);
+                AssertSharedResourcePage(picture, page, imageDrawn: !overBudget);
+            }
+        }
+
+        (PagePreparation how, CopyRejection why) expected = overBudget ? (PagePreparation.InPlace, CopyRejection.OverBudget) : (PagePreparation.Copy, CopyRejection.None);
+        Assert.Equal(Enumerable.Range(0, Pages).Select(page => (page, expected.how, expected.why)), prepared);
+    }
+
+    /// <summary>
+    /// The pages that share one content array: with inherited resources both print from their copies; with one
+    /// shared resource dictionary the second page's copy shows the first page's fields, so the comparison sends it
+    /// to the fallback, and that is what it reports.
+    /// </summary>
+    [Theory]
+    [InlineData(SharedResources.Inherited)]
+    [InlineData(SharedResources.Indirect)]
+    public void Pages_that_share_their_content_array_report_how_they_were_prepared(SharedResources resources)
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(2, images: 1, withFields: true, resources, sharedContentArray: true);
+        var prepared = new List<(int Page, PagePreparation How, CopyRejection Why)>();
+        using (IPdfDocument document = Load(pdf))
+        {
+            ((PdfiumDocument)document).PagePrepared = (page, how, why) => prepared.Add((page, how, why));
+            Render(document, RenderPath.Bitmap, pageIndex: 0).Dispose();
+            Render(document, RenderPath.Bitmap, pageIndex: 1).Dispose();
+        }
+
+        (PagePreparation, CopyRejection) second = resources == SharedResources.Indirect ? (PagePreparation.InPlace, CopyRejection.LooksDifferent) : (PagePreparation.Copy, CopyRejection.None);
+        Assert.Equal([(0, PagePreparation.Copy, CopyRejection.None), (1, second.Item1, second.Item2)], prepared);
+    }
+
+    /// <summary>A page drawn outside the planned pages reports that it was not planned.</summary>
+    [Fact]
+    public void A_page_drawn_outside_the_planned_pages_reports_it()
+    {
+        byte[] pdf = SharedResourceFixtureFactory.Create(3, images: 1, withFields: true, SharedResources.Indirect);
+        var prepared = new List<(int Page, PagePreparation How, CopyRejection Why)>();
+        using (IPdfDocument document = Load(pdf))
+        {
+            ((PdfiumDocument)document).PagePrepared = (page, how, why) => prepared.Add((page, how, why));
+            document.PlanToDraw([0]);
+            Render(document, RenderPath.Bitmap, pageIndex: 0).Dispose();
+            Render(document, RenderPath.Bitmap, pageIndex: 2).Dispose();
+        }
+
+        Assert.Equal([(0, PagePreparation.Copy, CopyRejection.None), (2, PagePreparation.InPlace, CopyRejection.NotPlanned)], prepared);
+    }
+
+    /// <summary>A real copy of the requested pages, each then made 100 points narrower, as a misbehaving copy might be.</summary>
+    private static PageCopier NarrowingCopier() => (document, pageIndices, insertAt) =>
+    {
+        bool copied = PdfiumNative.FPDF_ImportPagesByIndex(document, document, pageIndices, (uint)pageIndices.Length, insertAt) != 0;
+        for (int k = 0; copied && k < pageIndices.Length; k++)
+        {
+            IntPtr copy = PdfiumNative.FPDF_LoadPage(document, insertAt + k);
+            Assert.NotEqual(IntPtr.Zero, copy);
+            PdfiumNative.FPDFPage_SetMediaBox(copy, 0, 0, FormFixtureFactory.PageWidthPoints - 100, FormFixtureFactory.PageHeightPoints);
+            PdfiumNative.FPDF_ClosePage(copy);
+        }
+
+        return copied;
+    };
+
+    /// <summary>PDFium's own flattener, except that the first call (the one on the copy) reports failure.</summary>
+    private static PageFlattener FailingFirstFlattener()
+    {
+        int calls = 0;
+        return (page, usage) => Interlocked.Increment(ref calls) == 1 ? 0 : PdfiumNative.FPDFPage_Flatten(page, usage);
+    }
+
     /// <summary>PDFium's page copy, recording each call (the pages and where their copies go) in <paramref name="calls"/>.</summary>
     private static PageCopier RecordingCopier(List<(int[] Pages, int InsertAt)> calls) => (document, pageIndices, insertAt) =>
     {
