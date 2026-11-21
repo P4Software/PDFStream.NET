@@ -2855,7 +2855,7 @@ Source: `licenses/zlib.txt` in the `chromium/8165` release archive.
 
 Source: `LICENSE.TXT` in the System.Drawing.Common package; the `LICENSE.TXT` in the
 `Microsoft.NETCore.App.Runtime.win-x64` package (the .NET runtime in the self-contained test-print sample) is the
-same text, byte for byte.
+same licence text (the two files differ only in line endings).
 
 ```text
 The MIT License (MIT)

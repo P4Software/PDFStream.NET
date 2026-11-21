@@ -38,9 +38,6 @@ PDFium are taken by updating that dependency to a newer build and releasing a ne
 application can also reference a newer `bblanchon.PDFium.Win32` directly, which NuGet then uses instead; PDFStream
 has only been tested with the version it depends on.
 
-A bug inside PDFium itself can also be reported to the PDFium project; its bug tracker is linked from
-[pdfium.googlesource.com/pdfium](https://pdfium.googlesource.com/pdfium/).
-
 ## Known limits
 
 PDFium runs inside the program that calls PDFStream, without a sandbox, so a malformed or hostile PDF that crashes
