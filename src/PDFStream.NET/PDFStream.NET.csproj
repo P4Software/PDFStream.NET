@@ -4,7 +4,12 @@
   <PropertyGroup>
     <RootNamespace>PDFStream.NET</RootNamespace>
     <AssemblyName>PDFStream.NET</AssemblyName>
-    <Description>Free, open-source silent PDF printing for .NET on Windows, powered by PDFium. No Adobe Reader, no licence keys, no watermarks.</Description>
+    <!--
+      The Description is the summary nuget.org shows in search results and at the top of the package page, and
+      the text its search ranks: it leads with what the package does for the reader and carries the words people
+      search for (silent PDF printing, Windows, services, servers, no Adobe Reader, no licence keys).
+    -->
+    <Description>Silent PDF printing for .NET on Windows: print a PDF file, stream or byte array to any local or network printer in one call, with no print dialog and no Adobe Reader. Made for Windows services, background jobs and servers that print unattended. Free and open source (MIT), powered by the bundled PDFium engine, with no licence keys, watermarks or telemetry.</Description>
   </PropertyGroup>
 
   <!--
@@ -21,8 +26,14 @@
     -->
     <PackageId>PDFStream.NET</PackageId>
     <Title>PDFStream.NET</Title>
-    <PackageTags>pdf;print;printing;printer;silent;pdfium;windows;service</PackageTags>
+    <!-- MSBuild takes the tags separated by semicolons; the nuspec gets them separated by spaces, as nuget.org wants. -->
+    <PackageTags>pdf;print;printing;printer;silent;windows;pdfium;batch;automation;server;service;pdf-printing</PackageTags>
+    <!-- The picture nuget.org and IDE package managers show; drawn by tools/make-icon.ps1, packed below. -->
+    <PackageIcon>icon.png</PackageIcon>
+    <!-- README.nuget.md, packed under this name (see below). The repository README.md stays the GitHub page. -->
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Shown on nuget.org as "Release Notes" for this version; the changelog keeps the full history. -->
+    <PackageReleaseNotes>1.0.0-rc.2 gives the package a proper nuget.org page: an icon, a readme written for nuget.org, a clearer description, search tags and these release notes. The library code is unchanged from 1.0.0-rc.1. Full changelog: https://github.com/P4Software/PDFStream.NET/blob/main/CHANGELOG.md</PackageReleaseNotes>
     <PackageProjectUrl>https://github.com/P4Software/PDFStream.NET</PackageProjectUrl>
     <RepositoryUrl>https://github.com/P4Software/PDFStream.NET</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
@@ -30,11 +41,20 @@
 
   <ItemGroup Label="Files shipped in the package root">
     <!--
-      The README is the package page on nuget.org (its links are absolute for that reason). The licence and
-      the third-party notices travel with every copy of the package: the Apache-2.0 parts of PDFium require
-      that recipients get the licence texts, which are in THIRD-PARTY-NOTICES.md.
+      README.nuget.md is the package page on nuget.org, written for it: no HTML, only absolute https links,
+      and images only from hosts nuget.org allows (shields.io badges). It is packed under the name README.md,
+      which PackageReadmeFile above points to; the repository's own README.md is the GitHub page and is not
+      packed. icon.png is the package icon. Both files sit in this folder, so the SDK's default None glob lists
+      them in each per-framework build, but not in the outer build that "dotnet pack" runs for a multi-targeted
+      project; an Update alone would therefore pack nothing. They are removed from the glob and included once,
+      explicitly, so both builds see exactly one item each.
+
+      The licence and the third-party notices travel with every copy of the package: the Apache-2.0 parts of
+      PDFium require that recipients get the licence texts, which are in THIRD-PARTY-NOTICES.md.
     -->
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Remove="README.nuget.md;icon.png" />
+    <None Include="README.nuget.md" Pack="true" PackagePath="README.md" />
+    <None Include="icon.png" Pack="true" PackagePath="\" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="\" Visible="false" />
   </ItemGroup>

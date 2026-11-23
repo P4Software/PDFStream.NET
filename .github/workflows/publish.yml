@@ -1,0 +1,212 @@
+# Publishes PDFStream.NET to nuget.org with NuGet Trusted Publishing: no long-lived API key exists anywhere.
+#
+# How it works: the job asks GitHub for a short-lived OIDC token (that is what "id-token: write" allows), the
+# NuGet/login action exchanges it at nuget.org for an API key that is valid for one hour, and the push uses that
+# key right away. nuget.org only hands out the key when the token matches a Trusted Publishing policy that names
+# this repository owner, this repository, this workflow file (publish.yml: renaming the file breaks the policy)
+# and the "release" environment. See "Releasing" in CONTRIBUTING.md for the one-time set-up and the steps of
+# each release, and https://learn.microsoft.com/nuget/nuget-org/trusted-publishing for the mechanism.
+#
+# Safety:
+# - It only runs when someone starts it by hand (Actions tab, "Run workflow"); never on push or pull request.
+# - It refuses to run from any branch other than main, before anything is built or approved.
+# - The publish job runs in the "release" environment, which the owner protects with a required reviewer, so
+#   nothing is pushed without an approval click.
+# - It builds, tests, packs and checks the package exactly as CI does (the same package-check script), and
+#   pushes only a package that passed.
+# - The nuget.org user name comes from the repository secret NUGET_USER; the API key is masked by the login
+#   action and only ever passed through an environment variable, never echoed.
+# - --skip-duplicate makes a re-run harmless: a version that is already on nuget.org is left alone.
+#
+# Third-party actions are pinned to full commit SHAs (the release each SHA belongs to is in the comment), so a
+# moved tag cannot change what runs with the permission to publish.
+name: Publish to NuGet
+
+on:
+  workflow_dispatch:
+
+# Nothing is granted workflow-wide; the publish job asks for exactly what it needs.
+permissions: {}
+
+# Two publishes must never overlap. A second run waits for the first instead of cancelling it.
+concurrency:
+  group: publish-to-nuget
+  cancel-in-progress: false
+
+env:
+  # No usage data leaves the build: the .NET CLI and Microsoft Testing Platform both honour these.
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  TESTINGPLATFORM_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
+jobs:
+  # Fails fast, with a plain message, when the run was started on another branch, so nobody is asked to approve a
+  # release that can only be refused afterwards.
+  check-branch:
+    name: Check that the run is on main
+    runs-on: windows-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Refuse to publish from any branch other than main
+        shell: pwsh
+        env:
+          RUN_REF: ${{ github.ref }}
+        run: |
+          if ($env:RUN_REF -cne 'refs/heads/main') {
+            "::error title=Not on main::This workflow publishes to nuget.org only from the main branch, but it was started on '$env:RUN_REF'. Nothing was built or published. Start it again from the Actions tab and choose 'Branch: main' under 'Use workflow from'."
+            exit 1
+          }
+          'The run is on main: the publish job can start once it is approved.'
+
+  publish:
+    name: Build, test, check and publish (windows-latest)
+    needs: check-branch
+    # A second guard on the job itself, in case the first job is ever removed or skipped.
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # The owner protects this environment with a required reviewer; the nuget.org policy names it too.
+    environment: release
+    permissions:
+      contents: read     # check out the repository
+      id-token: write    # ask GitHub for the OIDC token that nuget.org exchanges for a short-lived API key
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      # Fails before anything is built when the one setting this workflow needs is missing. The value is never
+      # printed.
+      - name: Check that the NUGET_USER secret is set
+        env:
+          NUGET_USER: ${{ secrets.NUGET_USER }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:NUGET_USER)) {
+            "::error title=NUGET_USER missing::The repository secret NUGET_USER is not set. Add it under Settings > Secrets and variables > Actions, with the nuget.org profile name (not an e-mail address) as its value, then run this workflow again. Nothing was published."
+            exit 1
+          }
+          'The NUGET_USER secret is set.'
+
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install the .NET SDKs
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          # The same SDKs as ci.yml: the .NET 10 SDK builds both targets and runs the tests through Microsoft
+          # Testing Platform; the .NET 8 install brings the runtime the net8.0-windows tests run on.
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Show the .NET SDK in use
+        run: dotnet --version
+
+      - name: Restore
+        run: dotnet restore
+
+      # Warnings are errors here: a release is built from a tree with no warnings at all.
+      - name: Build (warnings as errors)
+        run: dotnet build --configuration Release --no-restore -warnaserror
+
+      - name: Test (net8.0-windows)
+        run: >-
+          dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj
+          --framework net8.0-windows --configuration Release --no-build
+          --results-directory artifacts/test-results
+          --report-xunit-trx --report-xunit-trx-filename net8.0-windows.trx
+
+      - name: Test (net10.0-windows)
+        run: >-
+          dotnet test --project tests/PDFStream.NET.Tests/PDFStream.NET.Tests.csproj
+          --framework net10.0-windows --configuration Release --no-build
+          --results-directory artifacts/test-results
+          --report-xunit-trx --report-xunit-trx-filename net10.0-windows.trx
+
+      - name: Upload the test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: publish-test-results
+          path: artifacts/test-results
+          if-no-files-found: warn
+
+      - name: Pack the NuGet package
+        run: dotnet pack src/PDFStream.NET/PDFStream.NET.csproj --configuration Release --no-build --output artifacts/package
+
+      # The same script ci.yml runs. It fails unless the folder holds exactly PDFStream.NET.<pinned version>.nupkg
+      # with the id PDFStream.NET, the icon, the package readme, the licence, the notices and the right metadata.
+      - name: Check the package contents
+        run: ./.github/scripts/check-package.ps1 -PackageFolder artifacts/package
+
+      # The file name and the version for the steps below. The check above has already proved that there is
+      # exactly one package and that its version is the pinned one.
+      - name: Find the package
+        id: package
+        run: |
+          $nupkg = Get-ChildItem artifacts/package -Filter 'PDFStream.NET.*.nupkg' | Where-Object { $_.Name -notlike '*.snupkg' } | Select-Object -First 1
+          $version = $nupkg.BaseName.Substring('PDFStream.NET.'.Length)
+          "path=$($nupkg.FullName)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "Package to publish: $($nupkg.Name) (version $version)"
+
+      - name: Upload the NuGet package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: PDFStream.NET-${{ steps.package.outputs.version }}-nuget-package
+          path: artifacts/package
+          if-no-files-found: error
+
+      # Requested only now, right before the push, because the key it returns is valid for one hour.
+      - name: Get a short-lived nuget.org API key (Trusted Publishing)
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Push the package to nuget.org
+        id: push
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+          PACKAGE_PATH: ${{ steps.package.outputs.path }}
+        run: |
+          $output = dotnet nuget push $env:PACKAGE_PATH --api-key $env:NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate 2>&1
+          $exitCode = $LASTEXITCODE
+          $output | ForEach-Object { "$_" }
+          if ($exitCode -ne 0) {
+            "::error title=Push failed::dotnet nuget push failed with exit code $exitCode. Read the lines above; nothing was published by this run."
+            exit $exitCode
+          }
+          # With --skip-duplicate an existing version is reported as a conflict and skipped, not as a failure.
+          $skipped = [bool] ($output | Select-String -SimpleMatch 'already exists')
+          "skipped=$($skipped.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Summary
+        env:
+          PACKAGE_VERSION: ${{ steps.package.outputs.version }}
+          SKIPPED: ${{ steps.push.outputs.skipped }}
+        run: |
+          $url = "https://www.nuget.org/packages/PDFStream.NET/$env:PACKAGE_VERSION"
+          if ($env:SKIPPED -eq 'true') {
+            $lines = @(
+              '### PDFStream.NET was already on nuget.org',
+              '',
+              "Version $env:PACKAGE_VERSION of PDFStream.NET already exists on nuget.org, so nothing was pushed (a version can never be replaced).",
+              "To release a change, raise the version and run this workflow again. Package page: $url"
+            )
+          } else {
+            $lines = @(
+              '### PDFStream.NET pushed to nuget.org',
+              '',
+              "- Package: PDFStream.NET",
+              "- Version: $env:PACKAGE_VERSION",
+              "- Page: $url",
+              '',
+              'nuget.org now validates and indexes the package. For some minutes the page shows the version as Validating, and it cannot be installed yet; that is normal. A prerelease is listed only when "Include prerelease" is ticked.'
+            )
+          }
+          $lines | ForEach-Object { $_ }
+          $lines | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8

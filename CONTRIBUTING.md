@@ -77,9 +77,20 @@ dotnet publish samples/PDFStream.NET.TestPrint/PDFStream.NET.TestPrint.csproj --
 ```
 
 The package is named `PDFStream.NET`, so `dotnet pack` writes `artifacts/package/PDFStream.NET.<version>.nupkg`
-(`PDFStream.NET.1.0.0-rc.1.nupkg` for the first release). The version is set in one place, `VersionPrefix` and
-`VersionSuffix` in `Directory.Build.props`, and the package check in `.github/workflows/ci.yml` expects the same
-version: change both together when a new version is released.
+(`PDFStream.NET.1.0.0-rc.2.nupkg` for the current version). The version is set in one place, `VersionPrefix` and
+`VersionSuffix` in `Directory.Build.props`, and the package check, `.github/scripts/check-package.ps1`, expects the
+same version: change both together when a new version is released. Run the check locally after a pack:
+
+```text
+pwsh -File .github/scripts/check-package.ps1 -PackageFolder artifacts/package
+```
+
+The package page on nuget.org is `src/PDFStream.NET/README.nuget.md`, packed as `README.md`; the repository's own
+`README.md` is the GitHub page and is not packed. Write the package readme for nuget.org: no HTML, only absolute
+`https` links, and images only from hosts nuget.org allows (for example `img.shields.io`). Its
+`dotnet add package PDFStream.NET --version <version>` line must name the version being released; the package check
+fails otherwise. The package icon, `src/PDFStream.NET/icon.png`, is drawn by `tools/make-icon.ps1`
+(`pwsh -File tools/make-icon.ps1`): change the script and run it again rather than editing the picture.
 The assembly inside it is `PDFStream.NET.dll` and the namespace is `PDFStream.NET`.
 
 The package does not contain `pdfium.dll` itself: it depends on the `bblanchon.PDFium.Win32` package, whose
@@ -90,7 +101,7 @@ with `<PackageReference Include="PDFStream.NET" Version="<version>" />`, add
 folder (so an older copy of the package in your cache cannot stand in for the new one), build and publish it
 with `-r win-x64`, `-r win-x86`, `-r win-arm64` and with no runtime identifier, for `net8.0-windows` and
 `net10.0-windows`, and check that the `pdfium.dll` next to the exe is the one for that architecture. CI checks
-the package's own contents (licence, notices, readme, metadata, the PDFium dependency) on every run.
+the package's own contents (licence, notices, package readme, icon, metadata, the PDFium dependency) on every run.
 
 The publish command makes one exe that includes .NET and `pdfium.dll`, so it runs by double-click on a
 machine without .NET.
@@ -100,6 +111,39 @@ machine without .NET.
 Work through the [manual release checklist](docs/release-checklist.md). Nothing in it counts as verified until
 someone has run the check and written the machine, the date and the result in the row. Never mark a row from
 memory.
+
+## Releasing
+
+Releases are published to nuget.org by the **Publish to NuGet** workflow (`.github/workflows/publish.yml`) with
+NuGet Trusted Publishing: GitHub gives the workflow a short-lived token, nuget.org exchanges it for an API key that
+is valid for one hour, and the workflow pushes with it. No API key is stored anywhere, so there is none to rotate
+or leak. The workflow runs only when started by hand, only from `main`, and only after a reviewer approves it.
+
+One-time set-up (the owner):
+
+1. On nuget.org, open your name menu, choose **Trusted Publishing** and add a policy: Repository Owner
+   `P4Software`, Repository `PDFStream.NET`, Workflow File `publish.yml` (the file name only), Environment
+   `release`, with the scope to push new versions of the package `PDFStream.NET`.
+2. On GitHub, in the repository settings, create the environment `release` with a required reviewer.
+3. Add the repository secret `NUGET_USER` with the nuget.org profile name (not an e-mail address) as its value.
+
+If nuget.org shows the new policy as temporarily active (it does this when it cannot yet look up the repository's
+IDs, usually for private repositories), it stays active for 7 days and becomes permanently active with the first
+successful publish.
+
+Each release:
+
+1. Set the version: `VersionPrefix` and `VersionSuffix` in `Directory.Build.props`, the pinned version in
+   `.github/scripts/check-package.ps1`, and the `--version` install line in `src/PDFStream.NET/README.nuget.md`.
+   Add the version's section to `CHANGELOG.md` and update `PackageReleaseNotes` in the library's project file.
+2. Merge to `main` once CI is green.
+3. On GitHub, open **Actions**, choose **Publish to NuGet**, then **Run workflow** with `main` selected.
+4. Approve the run when GitHub asks (the `release` environment). The workflow builds with warnings as errors,
+   runs both test suites, packs, runs the package check and only then pushes.
+5. Wait while nuget.org shows the new version as **Validating**; it can be installed once that is done, usually
+   within some minutes. A version on nuget.org can never be changed or reused: a mistake means a new version.
+
+Re-running the workflow for a version that is already on nuget.org pushes nothing (`--skip-duplicate`).
 
 ## Rules for code
 

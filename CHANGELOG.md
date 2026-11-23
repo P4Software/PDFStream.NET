@@ -6,6 +6,74 @@ All notable changes to PDFStream.NET are recorded here. The format follows
 
 ## [Unreleased]
 
+## 1.0.0-rc.2 - 2026-11-21
+
+A package-page release. A version on nuget.org can never be edited, so the new nuget.org page ships as a new
+version. There is no library code change: the assemblies are built from the same code as 1.0.0-rc.1, and the
+manual release checklist rows are as open as they were for 1.0.0-rc.1.
+
+### Added
+
+- A package icon, `src/PDFStream.NET/icon.png` (256 x 256, flat P4 Software brand colours): a PDF page with a
+  folded orange corner whose downward "stream" chevrons lead into a printer, with the printed sheet coming out.
+  It is drawn by `tools/make-icon.ps1` (PowerShell 7 and System.Drawing, no other tools), so it can be rebuilt
+  and reviewed like code; running the script twice gives the same file.
+- A package readme written for nuget.org, `src/PDFStream.NET/README.nuget.md`, packed as `README.md`: a one-line
+  pitch, badges, why, features, a quick start, a stream, page range and duplex example, install, requirements, a
+  status box with what is and is not verified, security and limits, and links. It uses no HTML, only absolute
+  https links, and images only from shields.io. The repository `README.md` stays the GitHub page and is no longer
+  packed.
+- `.github/scripts/check-package.ps1`: the package check, moved out of `ci.yml` into one script, the only place
+  that pins the version being released.
+- `.github/workflows/publish.yml` ("Publish to NuGet"): publishes to nuget.org with NuGet Trusted Publishing, so
+  no API key is stored. It runs only when started by hand, only from `main`, in the `release` environment (which
+  needs an approval); it builds with warnings as errors, runs both test suites, packs, runs the same package
+  check as CI, uploads the package, then asks nuget.org for a one-hour key and pushes with `--skip-duplicate`.
+  `CONTRIBUTING.md` describes the one-time set-up and the steps of each release. It has not run yet: the
+  nuget.org policy, the environment and the secret it needs do not exist yet.
+
+### Changed
+
+- Package metadata: a benefit-led description, search tags (`pdf print printing printer silent windows pdfium
+  batch automation server service pdf-printing`), release notes with a link to this changelog, and the icon.
+- The package check now also fails without `icon.png` at the package root or `<icon>icon.png</icon>` in the
+  nuspec, for an icon that is not a square PNG of at least 128 px and at most 1 MB, without release notes, and
+  when `README.md` in the package is not the package readme (raw HTML, a link or image that is not absolute
+  https, or no install command for the version being released). It expects version 1.0.0-rc.2.
+- `README.md`, `SECURITY.md` and `CONTRIBUTING.md` no longer say the package is unpublished: 1.0.0-rc.1 was
+  published on nuget.org on 2026-11-21. `README.md` has a NuGet badge, and `CONTRIBUTING.md` says where the
+  package readme, the icon and the version pin live. `docs/usage.md` adds `--prerelease` to its install line.
+- `docs/release-checklist.md` records that 1.0.0-rc.1 was published with the manual rows still Not run, and one
+  reported (not signed-off) print through an installed print service.
+
+### Verified
+
+On one Windows 11 x64 machine, .NET SDK 11.0.100, on 2026-11-21:
+
+- `dotnet build -warnaserror` from the repository root: 0 warnings, 0 errors, on `net8.0-windows` and
+  `net10.0-windows`.
+- The full test suite in a 64-bit process: `net8.0-windows` 452 passed and `net10.0-windows` 477 passed, none
+  skipped (Debug). The 32-bit runs were not repeated for this version, which has no library code change.
+- `dotnet pack -c Release` into a folder outside the repository gave `PDFStream.NET.1.0.0-rc.2.nupkg` with
+  `icon.png`, `README.md` (byte for byte `README.nuget.md`), `LICENSE`, `THIRD-PARTY-NOTICES.md` and
+  `lib/net8.0-windows7.0/PDFStream.NET.dll` and `lib/net10.0-windows7.0/PDFStream.NET.dll`; the nuspec has the
+  icon, the readme, the tags and the release notes. The package check passed against it, and failed, as it must,
+  against copies without `icon.png`, without `<icon>`, without `README.md` and with the GitHub README in its place.
+- The two C# samples in `README.nuget.md`, compiled unchanged as console programs against the library for both
+  frameworks with warnings as errors: 0 warnings, 0 errors.
+- A separate win-x64 app on `net10.0-windows` restored the package (`<PackageReference Include="PDFStream.NET"
+  Version="1.0.0-rc.2" />`) from that folder into an empty package cache and printed a one-page PDF to
+  *Microsoft Print to PDF* with `OutputFile` (status Ok, one page sent, a one-page PDF written), and the
+  `pdfium.dll` next to its exe was the x64 one from the PDFium package (same SHA-256).
+- `README.nuget.md` rendered through GitHub's markdown API: one table, two block quotes, all links and images
+  absolute https. nuget.org renders with its own engine, which was not seen before publishing.
+- The published 1.0.0-rc.1 package names commit `e8cf1df` in its nuspec, the commit this version branches from:
+  `git diff e8cf1df -- '*.cs'` is empty, and both versions have the same dependency groups (System.Drawing.Common
+  8.0.34 and 10.0.15, bblanchon.PDFium.Win32 160.0.8165).
+- Against nuget.org: a plain `dotnet add package PDFStream.NET` stops with "There are no stable versions
+  available, 1.0.0-rc.1 is the best available. Consider adding the --prerelease option", and
+  `dotnet add package PDFStream.NET --prerelease` adds 1.0.0-rc.1.
+
 ## 1.0.0-rc.1 - 2026-11-21
 
 The first release of PDFStream.NET, a release candidate (a prerelease on NuGet). The stable 1.0.0 follows once the
